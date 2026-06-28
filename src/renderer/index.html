@@ -244,10 +244,10 @@
     // STATE
     // ═══════════════════════════════════════════════════════
     function displayUrl(url) {
-      if (!url) return '';
-      if (url.includes('newtab.html')) return 'flamby://newtab';
-      return url;
-    }
+  if (!url) return '';
+  if (url.includes('newtab.html')) return '';
+  return url;
+}
 
     let homepage        = 'newtab.html';
     let searchEngine    = 'google';
