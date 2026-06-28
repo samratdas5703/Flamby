@@ -169,7 +169,7 @@
   </style>
 </head>
 <body>
-  <div class="browser-shell">
+  <div class="browser-shell" id="browserShell">
 
     <!-- Tab Bar -->
     <div class="tab-bar">
@@ -181,6 +181,21 @@
         <button class="win-btn close-btn" onclick="window.electronAPI.close()"></button>
       </div>
     </div>
+
+    <div class="browser-body">
+
+      <!-- Vertical Tab Rail -->
+      <div class="tab-rail" id="tabRail">
+        <div class="tab-rail-header">
+          <button class="rail-collapse-btn" id="railCollapseBtn" onclick="toggleRailCollapse()" title="Collapse rail">‹</button>
+          <button class="new-tab-btn-vertical" onclick="addTab()">
+            <span>+</span><span class="label">&nbsp;New Tab</span>
+          </button>
+        </div>
+        <div class="tabs-vertical" id="tabListVertical"></div>
+      </div>
+
+      <div class="browser-main">
 
     <!-- Toolbar -->
     <div class="toolbar">
@@ -235,6 +250,8 @@
         ⬇️<span id="downloadBadge" class="download-badge" style="display:none">0</span>
       </button>
 
+      
+
       <button class="nav-btn" onclick="toggleSettings()" title="Settings">⚙️</button>
       <span class="badge green">🚫 Ads</span>
       <span class="badge blue">🔒 Private</span>
@@ -249,6 +266,9 @@
 
     <!-- Webview Container -->
     <div class="webview-container" id="webviewContainer"></div>
+
+      </div> <!-- /.browser-main -->
+    </div> <!-- /.browser-body -->
 
     <!-- Bookmark Popup Overlay -->
     <div class="popup-overlay" id="popupOverlay" onclick="closeBookmarkPopup()"></div>
@@ -315,6 +335,18 @@
   <button class="theme-btn"        onclick="setTheme('green')"  id="theme-green">💚 Green</button>
   <button class="theme-btn"        onclick="setTheme('pink')"   id="theme-pink">💗 Pink</button>
 </div>
+      </div>
+
+      <div class="settings-section">
+        <h3>🗂️ Tabs</h3>
+        <div class="toggle-row" style="border-bottom:none;">
+          <span>Vertical Tabs</span>
+          <label class="toggle">
+            <input type="checkbox" id="verticalTabsToggle"
+                   onchange="toggleTabLayout()"/>
+            <span class="slider"></span>
+          </label>
+        </div>
       </div>
 
       <div class="settings-section">
@@ -615,6 +647,48 @@
           <span class="tab-title">${t.title}</span>
           <button class="tab-close" onclick="closeTab('${t.id}', event)">✕</button>
         </div>`).join('');
+
+      const rail = document.getElementById('tabListVertical');
+      if (rail) {
+        rail.innerHTML = tabs.map(t => `
+          <div class="tab-vertical ${t.id === activeTab ? 'active' : ''}"
+               onclick="switchTab('${t.id}')"
+               title="${(t.title || '').replace(/"/g, '&quot;')}">
+            <span class="tab-vertical-dot"></span>
+            <span class="tab-vertical-title">${t.title}</span>
+            <button class="tab-vertical-close" onclick="closeTab('${t.id}', event)">✕</button>
+          </div>`).join('');
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // VERTICAL TABS LAYOUT
+    // ═══════════════════════════════════════════════════════
+
+    function applyTabLayout(layout) {
+      const shell = document.getElementById('browserShell');
+      if (!shell) return;
+      shell.classList.toggle('vertical-tabs', layout === 'vertical');
+      const checkbox = document.getElementById('verticalTabsToggle');
+      if (checkbox) checkbox.checked = (layout === 'vertical');
+    }
+
+    async function toggleTabLayout() {
+      const checkbox = document.getElementById('verticalTabsToggle');
+      const next = checkbox && checkbox.checked ? 'vertical' : 'horizontal';
+      applyTabLayout(next);
+      currentSettings.tabLayout = next;
+      await saveSettings();
+    }
+
+    function toggleRailCollapse() {
+      const rail = document.getElementById('tabRail');
+      const btn  = document.getElementById('railCollapseBtn');
+      if (!rail) return;
+      const collapsed = rail.classList.toggle('collapsed');
+      if (btn) btn.textContent = collapsed ? '›' : '‹';
+      currentSettings.railCollapsed = collapsed;
+      saveSettings();
     }
 
     // ═══════════════════════════════════════════════════════
@@ -748,6 +822,15 @@ async function loadSettings() {
 
     // Apply theme
     applyTheme(saved.theme || 'dark');
+
+    // Apply vertical/horizontal tab layout
+    applyTabLayout(saved.tabLayout || 'horizontal');
+    if (saved.railCollapsed) {
+      const rail = document.getElementById('tabRail');
+      const railBtn = document.getElementById('railCollapseBtn');
+      if (rail) rail.classList.add('collapsed');
+      if (railBtn) railBtn.textContent = '›';
+    }
 
     // Apply homepage input value
     const homepageInput = document.getElementById('homepageInput');

@@ -357,7 +357,9 @@ app.whenReady().then(() => {
   sitePermissions = readJSON(PERMISSIONS_FILE, {});
   createWindow();
   autoUpdater.checkForUpdatesAndNotify();
+  win.webContents.openDevTools()   // dev
 });
+
 
 autoUpdater.on('update-downloaded', () => {
   autoUpdater.quitAndInstall();
