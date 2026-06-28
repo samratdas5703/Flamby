@@ -81,6 +81,91 @@
     .popup-overlay.show {
       display: block;
     }
+
+    /* ── Download badge ── */
+    .download-badge {
+      position: absolute;
+      top: 2px;
+      right: 2px;
+      background: #0a84ff;
+      color: white;
+      font-size: 10px;
+      font-weight: 700;
+      min-width: 15px;
+      height: 15px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 3px;
+      line-height: 1;
+    }
+
+    /* ── Downloads (lives inside settings-panel-style drawer) ── */
+    .download-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 12px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+    .download-item:last-child { border-bottom: none; }
+    .download-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: rgba(10,132,255,0.18);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+    .download-info { flex: 1; min-width: 0; }
+    .download-name {
+      font-size: 13px;
+      font-weight: 500;
+      color: #ffffff;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .download-meta {
+      font-size: 11px;
+      color: rgba(255,255,255,0.45);
+      margin-top: 3px;
+    }
+    .download-progress-track {
+      height: 3px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 2px;
+      margin-top: 8px;
+      overflow: hidden;
+    }
+    .download-progress-fill {
+      height: 100%;
+      background: rgba(10,132,255,0.85);
+      border-radius: 2px;
+      transition: width 0.2s ease;
+    }
+    .download-actions {
+      display: flex;
+      gap: 14px;
+      margin-top: 8px;
+    }
+    .download-actions span {
+      font-size: 11px;
+      color: rgba(255,255,255,0.5);
+      cursor: pointer;
+      transition: color 0.2s;
+    }
+    .download-actions span:hover { color: #5eb3ff; }
+    .downloads-empty {
+      color: rgba(255,255,255,0.35);
+      font-size: 13px;
+      text-align: center;
+      padding: 30px 10px;
+    }
   </style>
 </head>
 <body>
@@ -141,6 +226,15 @@
         title="Bookmark this page"
         style="font-size:18px;color:rgba(255,255,255,0.5)">☆</button>
 
+      <button
+        class="nav-btn"
+        id="downloadsBtn"
+        onclick="toggleDownloads()"
+        title="Downloads"
+        style="font-size:16px;color:rgba(255,255,255,0.5);position:relative">
+        ⬇️<span id="downloadBadge" class="download-badge" style="display:none">0</span>
+      </button>
+
       <button class="nav-btn" onclick="toggleSettings()" title="Settings">⚙️</button>
       <span class="badge green">🚫 Ads</span>
       <span class="badge blue">🔒 Private</span>
@@ -175,6 +269,26 @@
       <div class="bookmark-popup-buttons">
         <button class="btn-cancel" onclick="closeBookmarkPopup()">Cancel</button>
         <button class="btn-save" onclick="saveBookmarkFromPopup()">Save</button>
+      </div>
+    </div>
+
+    <!-- Downloads Panel -->
+    <div class="settings-panel" id="downloadsPanel">
+      <div class="settings-header">
+        <h2>⬇️ Downloads</h2>
+        <button class="close-settings" onclick="toggleDownloads()">✕</button>
+      </div>
+
+      <div class="settings-section">
+        <div id="downloadsList">
+          <div class="downloads-empty">No downloads yet</div>
+        </div>
+      </div>
+
+      <div class="settings-section" style="border-bottom:none;">
+        <button class="settings-save-btn" onclick="clearDownloadsList()" style="background:rgba(255,255,255,0.1);">
+          Clear list
+        </button>
       </div>
     </div>
 
@@ -244,10 +358,10 @@
     // STATE
     // ═══════════════════════════════════════════════════════
     function displayUrl(url) {
-  if (!url) return '';
-  if (url.includes('newtab.html')) return '';
-  return url;
-}
+      if (!url) return '';
+      if (url.includes('newtab.html')) return '';
+      return url;
+    }
 
     let homepage        = 'newtab.html';
     let searchEngine    = 'google';
@@ -696,6 +810,117 @@ function showToast(message) {
 }
 
     // ═══════════════════════════════════════════════════════
+    // DOWNLOADS
+    // ═══════════════════════════════════════════════════════
+
+    let downloadsCache = [];
+
+    function toggleDownloads() {
+      const panel = document.getElementById('downloadsPanel');
+      panel.classList.toggle('open');
+      if (panel.classList.contains('open')) refreshDownloadsList();
+    }
+
+    function formatBytes(bytes) {
+      if (!bytes || bytes <= 0) return '0 KB';
+      const units = ['B', 'KB', 'MB', 'GB'];
+      let i = 0;
+      let n = bytes;
+      while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
+      return `${n.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
+    }
+
+    function fileExt(filename) {
+      const parts = (filename || '').split('.');
+      return parts.length > 1 ? parts.pop().toUpperCase() : 'FILE';
+    }
+
+    function renderDownloads(list) {
+      downloadsCache = list || [];
+      const container = document.getElementById('downloadsList');
+      const badge = document.getElementById('downloadBadge');
+
+      const activeCount = downloadsCache.filter(d => d.state === 'progressing').length;
+      if (activeCount > 0) {
+        badge.style.display = 'flex';
+        badge.textContent = activeCount;
+      } else {
+        badge.style.display = 'none';
+      }
+
+      if (!downloadsCache.length) {
+        container.innerHTML = '<div class="downloads-empty">No downloads yet</div>';
+        return;
+      }
+
+      container.innerHTML = downloadsCache.map(d => {
+        const pct = d.totalBytes > 0 ? Math.min(100, Math.round((d.receivedBytes / d.totalBytes) * 100)) : 0;
+        const isDone = d.state === 'completed';
+        const isActive = d.state === 'progressing';
+        const sizeLine = isActive
+          ? `${formatBytes(d.receivedBytes)} of ${d.totalBytes > 0 ? formatBytes(d.totalBytes) : '?'}`
+          : (isDone ? formatBytes(d.receivedBytes || d.totalBytes) : d.state);
+        const safePath = d.savePath.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+
+        return `
+          <div class="download-item">
+            <div class="download-icon">📄</div>
+            <div class="download-info">
+              <div class="download-name" title="${d.filename}">${d.filename}</div>
+              <div class="download-meta">${sizeLine}</div>
+              ${isActive ? `
+                <div class="download-progress-track">
+                  <div class="download-progress-fill" style="width:${pct}%"></div>
+                </div>
+              ` : ''}
+              <div class="download-actions">
+                ${isDone ? `
+                  <span onclick="openDownloadItem('${safePath}')">Open</span>
+                  <span onclick="showDownloadInFolder('${safePath}')">Show in folder</span>
+                ` : ''}
+                <span onclick="removeDownloadItem('${d.id}')">Remove</span>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function refreshDownloadsList() {
+      const list = await window.electronAPI.getDownloads();
+      renderDownloads(list);
+    }
+
+    async function clearDownloadsList() {
+      const list = await window.electronAPI.clearDownloads();
+      renderDownloads(list);
+    }
+
+    async function removeDownloadItem(id) {
+      const list = await window.electronAPI.removeDownload(id);
+      renderDownloads(list);
+    }
+
+    async function openDownloadItem(savePath) {
+      await window.electronAPI.openDownload(savePath);
+    }
+
+    async function showDownloadInFolder(savePath) {
+      await window.electronAPI.showInFolder(savePath);
+    }
+
+    // Live updates pushed from main process as downloads progress
+    window.electronAPI.onDownloadsUpdate((list) => {
+      const prevCompleted = new Set(
+        downloadsCache.filter(d => d.state === 'completed').map(d => d.id)
+      );
+      const justFinished = list.find(d => d.state === 'completed' && !prevCompleted.has(d.id));
+      if (justFinished) showToast(`Downloaded ${justFinished.filename}`);
+
+      renderDownloads(list);
+    });
+
+    // ═══════════════════════════════════════════════════════
     // INIT
     // ═══════════════════════════════════════════════════════
     async function init() {
@@ -705,6 +930,8 @@ function showToast(message) {
   await loadBookmarks();
   // Then open the first tab with the correct homepage
   addTab(homepage === 'newtab.html' ? homepage : homepage);
+  // Load any in-progress / past downloads
+  refreshDownloadsList();
 }
 
     init();
