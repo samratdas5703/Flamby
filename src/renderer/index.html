@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8"/>
+  <title>Flamby</title>
+  <link rel="stylesheet" href="css/main.css"/>
+  <style>
+    /* ── Bookmark Popup ── */
+    .bookmark-popup {
+      display: none;
+      position: fixed;
+      top: 100px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #1e1e2e;
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 14px;
+      padding: 20px;
+      width: 320px;
+      z-index: 99999;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+    }
+    .bookmark-popup.show {
+      display: block;
+    }
+    .bookmark-popup h3 {
+      color: white;
+      font-size: 15px;
+      margin-bottom: 14px;
+      font-weight: 600;
+    }
+    .bookmark-popup input {
+      width: 100%;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 8px;
+      padding: 10px 12px;
+      color: white;
+      font-size: 13px;
+      outline: none;
+      margin-bottom: 12px;
+      box-sizing: border-box;
+    }
+    .bookmark-popup input:focus {
+      border-color: rgba(10,132,255,0.6);
+    }
+    .bookmark-popup-buttons {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+    .bookmark-popup-buttons button {
+      padding: 8px 18px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+    }
+    .btn-cancel {
+      background: rgba(255,255,255,0.08);
+      color: rgba(255,255,255,0.7);
+    }
+    .btn-cancel:hover {
+      background: rgba(255,255,255,0.14);
+    }
+    .btn-save {
+      background: #0a84ff;
+      color: white;
+    }
+    .btn-save:hover {
+      background: #0070e0;
+    }
+    .popup-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      z-index: 99998;
+    }
+    .popup-overlay.show {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div class="browser-shell">
+
+    <!-- Tab Bar -->
+    <div class="tab-bar">
+      <div class="tabs" id="tabList"></div>
+      <button class="new-tab-btn" onclick="addTab()">+</button>
+      <div class="window-controls">
+        <button class="win-btn minimize" onclick="window.electronAPI.minimize()"></button>
+        <button class="win-btn maximize" onclick="window.electronAPI.maximize()"></button>
+        <button class="win-btn close-btn" onclick="window.electronAPI.close()"></button>
+      </div>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="toolbar">
+      <button class="nav-btn" onclick="goBack()" title="Back">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path d="M19 12H5M12 5l-7 7 7 7"/>
+        </svg>
+      </button>
+      <button class="nav-btn" onclick="goForward()" title="Forward">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path d="M5 12h14M12 5l7 7-7 7"/>
+        </svg>
+      </button>
+      <button class="nav-btn" onclick="reloadPage()" title="Reload">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path d="M23 4v6h-6M1 20v-6h6"/>
+          <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+        </svg>
+      </button>
+      <button class="nav-btn" onclick="goHome()" title="Home">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
+          <polyline points="9 22 9 12 15 12 15 22"/>
+        </svg>
+      </button>
+
+      <div class="address-wrapper">
+        <span class="lock-icon">🔒</span>
+        <input
+          class="address-bar"
+          id="urlBar"
+          type="text"
+          placeholder="Search or enter URL..."
+          onkeydown="if(event.key==='Enter') navigate()"
+        />
+        <button class="go-btn" onclick="navigate()">→</button>
+      </div>
+
+      <button
+        class="nav-btn"
+        id="bookmarkBtn"
+        onclick="handleBookmarkClick()"
+        title="Bookmark this page"
+        style="font-size:18px;color:rgba(255,255,255,0.5)">☆</button>
+
+      <button class="nav-btn" onclick="toggleSettings()" title="Settings">⚙️</button>
+      <span class="badge green">🚫 Ads</span>
+      <span class="badge blue">🔒 Private</span>
+    </div>
+
+    <!-- Bookmark Bar -->
+    <div class="bookmark-bar" id="bookmarkBar">
+      <span style="color:rgba(255,255,255,0.2);font-size:12px;padding:0 8px">
+        No bookmarks yet — click ☆ to add one
+      </span>
+    </div>
+
+    <!-- Webview Container -->
+    <div class="webview-container" id="webviewContainer"></div>
+
+    <!-- Bookmark Popup Overlay -->
+    <div class="popup-overlay" id="popupOverlay" onclick="closeBookmarkPopup()"></div>
+
+    <!-- Bookmark Popup -->
+    <div class="bookmark-popup" id="bookmarkPopup">
+      <h3>⭐ Add Bookmark</h3>
+      <input
+        type="text"
+        id="bookmarkNameInput"
+        placeholder="Bookmark name"
+      />
+      <input
+        type="text"
+        id="bookmarkUrlInput"
+        placeholder="URL"
+      />
+      <div class="bookmark-popup-buttons">
+        <button class="btn-cancel" onclick="closeBookmarkPopup()">Cancel</button>
+        <button class="btn-save" onclick="saveBookmarkFromPopup()">Save</button>
+      </div>
+    </div>
+
+    <!-- Settings Panel -->
+    <div class="settings-panel" id="settingsPanel">
+      <div class="settings-header">
+        <h2>⚙️ Settings</h2>
+        <button class="close-settings" onclick="toggleSettings()">✕</button>
+      </div>
+
+      <div class="settings-section">
+        <h3>🎨 Theme</h3>
+        <div class="theme-options">
+          <div class="theme-options">
+  <button class="theme-btn active" onclick="setTheme('dark')"   id="theme-dark">🌙 Dark</button>
+  <button class="theme-btn"        onclick="setTheme('light')"  id="theme-light">☀️ Light</button>
+  <button class="theme-btn"        onclick="setTheme('purple')" id="theme-purple">💜 Purple</button>
+  <button class="theme-btn"        onclick="setTheme('ocean')"  id="theme-ocean">🌊 Ocean</button>
+  <button class="theme-btn"        onclick="setTheme('brown')"  id="theme-brown">🟤 Brown</button>
+  <button class="theme-btn"        onclick="setTheme('gray')"   id="theme-gray">⚪ Gray</button>
+  <button class="theme-btn"        onclick="setTheme('white')"  id="theme-white">🤍 White</button>
+  <button class="theme-btn"        onclick="setTheme('black')"  id="theme-black">⚫ Black</button>
+  <button class="theme-btn"        onclick="setTheme('red')"    id="theme-red">❤️ Red</button>
+  <button class="theme-btn"        onclick="setTheme('green')"  id="theme-green">💚 Green</button>
+  <button class="theme-btn"        onclick="setTheme('pink')"   id="theme-pink">💗 Pink</button>
+</div>
+      </div>
+
+      <div class="settings-section">
+        <h3>🏠 Homepage</h3>
+        <input class="settings-input" id="homepageInput"
+               type="text" placeholder="Enter homepage URL"/>
+        <button class="settings-save-btn" onclick="saveHomepage()">Save</button>
+      </div>
+
+      <div class="settings-section">
+        <h3>🔍 Search Engine</h3>
+        <div class="search-options">
+          <button class="search-btn active" onclick="setSearch('google')"     id="search-google">🔍 Google</button>
+          <button class="search-btn"        onclick="setSearch('bing')"       id="search-bing">🅱️ Bing</button>
+          <button class="search-btn"        onclick="setSearch('duckduckgo')" id="search-ddg">🦆 DuckDuckGo</button>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h3>🔒 Privacy</h3>
+        <div class="toggle-row">
+          <span>Show Bookmark Bar</span>
+          <label class="toggle">
+            <input type="checkbox" checked id="bookmarkBarToggle"
+                   onchange="toggleBookmarkBar()"/>
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h3>📌 Bookmarks</h3>
+        <div id="bookmarkList"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    // ═══════════════════════════════════════════════════════
+    // STATE
+    // ═══════════════════════════════════════════════════════
+    function displayUrl(url) {
+      if (!url) return '';
+      if (url.includes('newtab.html')) return 'flamby://newtab';
+      return url;
+    }
+
+    let homepage        = 'newtab.html';
+    let searchEngine    = 'google';
+    let tabs            = [];
+    let activeTab       = null;
+    let bookmarks       = [];
+    let currentSettings = {};
+
+    const engines = {
+      google:     'https://www.google.com/search?q=',
+      bing:       'https://www.bing.com/search?q=',
+      duckduckgo: 'https://duckduckgo.com/?q=',
+    };
+
+    // ═══════════════════════════════════════════════════════
+    // BOOKMARKS
+    // ═══════════════════════════════════════════════════════
+
+    async function loadBookmarks() {
+      try {
+        const saved = await window.electronAPI.getBookmarks();
+        bookmarks = Array.isArray(saved) ? saved : [];
+        renderBookmarkBar();
+        renderBookmarkList();
+      } catch (e) {
+        console.error('Failed to load bookmarks:', e);
+        bookmarks = [];
+      }
+    }
+
+    async function saveAllBookmarks() {
+      try {
+        await window.electronAPI.saveBookmarks(bookmarks);
+      } catch (e) {
+        console.error('Failed to save bookmarks:', e);
+      }
+    }
+
+    // Opens the bookmark popup
+    function handleBookmarkClick() {
+      const url = document.getElementById('urlBar').value.trim();
+
+      // If already bookmarked, remove it immediately
+      const existingIndex = bookmarks.findIndex(b => b.url === url);
+      if (existingIndex !== -1) {
+        bookmarks.splice(existingIndex, 1);
+        saveAllBookmarks();
+        renderBookmarkBar();
+        renderBookmarkList();
+        updateStar(url);
+        return;
+      }
+
+      // Not bookmarked — show the popup
+      document.getElementById('bookmarkNameInput').value = document.title || url;
+      document.getElementById('bookmarkUrlInput').value  = url;
+      document.getElementById('bookmarkPopup').classList.add('show');
+      document.getElementById('popupOverlay').classList.add('show');
+      document.getElementById('bookmarkNameInput').focus();
+      document.getElementById('bookmarkNameInput').select();
+    }
+
+    function closeBookmarkPopup() {
+      document.getElementById('bookmarkPopup').classList.remove('show');
+      document.getElementById('popupOverlay').classList.remove('show');
+    }
+
+    async function saveBookmarkFromPopup() {
+      const name = document.getElementById('bookmarkNameInput').value.trim();
+      const url  = document.getElementById('bookmarkUrlInput').value.trim();
+
+      if (!name || !url) return;
+
+      bookmarks.push({
+        name: name,
+        url: url,
+        dateAdded: new Date().toISOString()
+      });
+
+      await saveAllBookmarks();
+      renderBookmarkBar();
+      renderBookmarkList();
+      updateStar(url);
+      closeBookmarkPopup();
+    }
+
+    // Save bookmark when user presses Enter in the popup
+    document.addEventListener('keydown', function(e) {
+      const popup = document.getElementById('bookmarkPopup');
+      if (popup.classList.contains('show') && e.key === 'Enter') {
+        saveBookmarkFromPopup();
+      }
+      if (popup.classList.contains('show') && e.key === 'Escape') {
+        closeBookmarkPopup();
+      }
+    });
+
+    async function removeBookmark(index) {
+      bookmarks.splice(index, 1);
+      await saveAllBookmarks();
+      renderBookmarkBar();
+      renderBookmarkList();
+      const url = document.getElementById('urlBar').value;
+      updateStar(url);
+    }
+
+    function updateStar(url) {
+      const btn = document.getElementById('bookmarkBtn');
+      if (!btn) return;
+      const isBookmarked = bookmarks.some(b => b.url === url);
+      btn.textContent = isBookmarked ? '★' : '☆';
+      btn.style.color = isBookmarked ? '#f5a623' : 'rgba(255,255,255,0.5)';
+    }
+
+    function getDomain(url) {
+      try { return new URL(url).hostname; }
+      catch (e) { return ''; }
+    }
+
+    function renderBookmarkBar() {
+      const bar = document.getElementById('bookmarkBar');
+      if (!bar) return;
+
+      if (bookmarks.length === 0) {
+        bar.innerHTML = `<span style="color:rgba(255,255,255,0.2);font-size:12px;padding:0 8px">No bookmarks yet — click ☆ to add one</span>`;
+        return;
+      }
+
+      bar.innerHTML = bookmarks.map((b, i) => `
+        <span class="bookmark-item" onclick="loadUrl('${b.url.replace(/'/g, "\\'")}')">
+          <img
+            src="https://www.google.com/s2/favicons?domain=${getDomain(b.url)}&sz=16"
+            width="14" height="14"
+            style="border-radius:2px;flex-shrink:0;margin-right:4px"
+            onerror="this.style.display='none'"
+          />${b.name}
+          <button class="bm-remove"
+                  onclick="event.stopPropagation();removeBookmark(${i})">✕</button>
+        </span>
+      `).join('');
+    }
+
+    function renderBookmarkList() {
+      const el = document.getElementById('bookmarkList');
+      if (!el) return;
+
+      if (bookmarks.length === 0) {
+        el.innerHTML = `<p style="color:rgba(255,255,255,0.4);font-size:13px">No bookmarks yet</p>`;
+        return;
+      }
+
+      el.innerHTML = bookmarks.map((b, i) => `
+        <div class="bm-list-item">
+          <img
+            src="https://www.google.com/s2/favicons?domain=${getDomain(b.url)}&sz=16"
+            width="14" height="14"
+            style="border-radius:2px;flex-shrink:0"
+            onerror="this.style.display='none'"
+          />
+          <span onclick="loadUrl('${b.url.replace(/'/g, "\\'")}');toggleSettings()"
+                style="flex:1;cursor:pointer;margin-left:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+            ${b.name}
+          </span>
+          <button onclick="removeBookmark(${i})"
+                  style="background:none;border:none;color:rgba(255,100,100,0.6);cursor:pointer;font-size:12px;padding:4px">✕</button>
+        </div>
+      `).join('');
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // TABS
+    // ═══════════════════════════════════════════════════════
+
+    function addTab(url) {
+      url = url || homepage;
+      const id  = 'tab-' + Date.now();
+      const tab = { id, url, title: 'New Tab' };
+      tabs.push(tab);
+      createWebview(tab);
+      switchTab(id);
+      renderTabs();
+    }
+
+    function createWebview(tab) {
+  const wv = document.createElement('webview');
+  wv.id = 'wv-' + tab.id;
+  wv.src = tab.url;
+  wv.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;border:none;display:none';
+  wv.setAttribute('partition', 'persist:main');
+
+      wv.addEventListener('did-navigate', e => {
+        tab.url = e.url;
+        if (activeTab === tab.id) {
+          document.getElementById('urlBar').value = displayUrl(e.url);
+          updateStar(e.url);
+        }
+      });
+
+      wv.addEventListener('did-navigate-in-page', e => {
+        tab.url = e.url;
+        if (activeTab === tab.id) {
+          document.getElementById('urlBar').value = displayUrl(e.url);
+          updateStar(e.url);
+        }
+      });
+
+      wv.addEventListener('page-title-updated', e => {
+        tab.title = e.title || 'New Tab';
+        renderTabs();
+      });
+
+      document.getElementById('webviewContainer').appendChild(wv);
+    }
+
+    function switchTab(id) {
+      activeTab = id;
+      document.querySelectorAll('#webviewContainer webview').forEach(wv => {
+        wv.style.display = 'none';
+      });
+      const wv = document.getElementById('wv-' + id);
+      if (wv) {
+        wv.style.display = 'flex';
+        const tab = tabs.find(t => t.id === id);
+        if (tab) {
+          document.getElementById('urlBar').value = displayUrl(tab.url || '');
+          updateStar(tab.url || '');
+        }
+      }
+      renderTabs();
+    }
+
+    function closeTab(id, e) {
+      e.stopPropagation();
+      const index = tabs.findIndex(t => t.id === id);
+      tabs = tabs.filter(t => t.id !== id);
+      const wv = document.getElementById('wv-' + id);
+      if (wv) wv.remove();
+      if (tabs.length === 0) { addTab(); return; }
+      if (activeTab === id) {
+        const newIndex = Math.min(index, tabs.length - 1);
+        switchTab(tabs[newIndex].id);
+      }
+      renderTabs();
+    }
+
+    function renderTabs() {
+      const list = document.getElementById('tabList');
+      list.innerHTML = tabs.map(t => `
+        <div class="tab ${t.id === activeTab ? 'active' : ''}"
+             onclick="switchTab('${t.id}')">
+          <span class="tab-title">${t.title}</span>
+          <button class="tab-close" onclick="closeTab('${t.id}', event)">✕</button>
+        </div>`).join('');
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // NAVIGATION
+    // ═══════════════════════════════════════════════════════
+
+    function getActiveWebview() {
+      return document.getElementById('wv-' + activeTab);
+    }
+
+    function navigate() {
+      let url = document.getElementById('urlBar').value.trim();
+      if (!url) return;
+      if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        url = url.includes('.') && !url.includes(' ')
+          ? 'https://' + url
+          : engines[searchEngine] + encodeURIComponent(url);
+      }
+      const wv = getActiveWebview();
+      if (wv) wv.src = url;
+    }
+
+    function loadUrl(url) {
+      const wv = getActiveWebview();
+      if (wv) {
+        wv.src = url;
+        document.getElementById('urlBar').value = displayUrl(url);
+        updateStar(url);
+      }
+    }
+
+    function goBack()    { const wv = getActiveWebview(); if (wv) wv.goBack(); }
+    function goForward() { const wv = getActiveWebview(); if (wv) wv.goForward(); }
+    function reloadPage(){ const wv = getActiveWebview(); if (wv) wv.reload(); }
+    function goHome()    { loadUrl(homepage); }
+
+    // ═══════════════════════════════════════════════════════
+    // SETTINGS
+    // ═══════════════════════════════════════════════════════
+
+    function toggleSettings() {
+  document.getElementById('settingsPanel').classList.toggle('open');
+  renderBookmarkList();
+}
+
+// ── Apply theme to the UI ──────────────────────────────────
+function applyTheme(theme) {
+  const themes = {
+    dark:   'linear-gradient(135deg, #2b1055, #4d1d75, #1a3a6b)',
+    light:  'linear-gradient(135deg, #a8c8ff, #c9b6f5, #f5c6e0)',
+    purple: 'linear-gradient(135deg, #1a0a2e, #3d1466, #1a0a2e)',
+    ocean:  'linear-gradient(135deg, #001e3c, #003e5c, #001e3c)',
+    brown:  'linear-gradient(135deg, #3e2723, #5d4037, #4e342e)',
+    gray:   'linear-gradient(135deg, #4a4a4a, #6b6b6b, #3d3d3d)',
+    white:  'linear-gradient(135deg, #f5f5f7, #e8e8ec, #fafafa)',
+    black:  'linear-gradient(135deg, #050505, #1a1a1a, #000000)',
+    red:    'linear-gradient(135deg, #4a0e0e, #7a1f1f, #2e0707)',
+    green:  'linear-gradient(135deg, #0d2818, #1e4d33, #0a1f12)',
+    pink:   'linear-gradient(135deg, #d68fb0, #f0b8d0, #e89dc0)',
+  };
+
+  // Themes whose gradient is bright enough to need dark text instead of white
+  const lightTextThemes = ['light', 'white', 'pink'];
+
+  const gradient = themes[theme] || themes.dark;
+  document.body.setAttribute('data-theme', lightTextThemes.includes(theme) ? 'light' : 'dark');
+  document.body.style.background = gradient;
+  document.querySelector('.browser-shell').style.background = gradient;
+
+  // Update active button
+  document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
+  const btn = document.getElementById('theme-' + theme);
+  if (btn) btn.classList.add('active');
+}
+
+// ── Set theme and save it ──────────────────────────────────
+async function setTheme(theme) {
+  applyTheme(theme);
+  currentSettings.theme = theme;
+  await saveSettings();
+}
+
+// ── Save homepage ──────────────────────────────────────────
+async function saveHomepage() {
+  const val = document.getElementById('homepageInput').value.trim();
+  if (!val) return;
+  homepage = val;
+  currentSettings.homepage = val;
+  await saveSettings();
+  showToast('✅ Homepage saved!');
+}
+
+// ── Set search engine and save it ─────────────────────────
+async function setSearch(engine) {
+  searchEngine = engine;
+  currentSettings.searchEngine = engine;
+  await saveSettings();
+
+  document.querySelectorAll('.search-btn').forEach(b => b.classList.remove('active'));
+  const btn = document.getElementById('search-' + engine);
+  if (btn) btn.classList.add('active');
+}
+
+// ── Toggle bookmark bar and save it ───────────────────────
+async function toggleBookmarkBar() {
+  const show = document.getElementById('bookmarkBarToggle').checked;
+  document.getElementById('bookmarkBar').style.display = show ? 'flex' : 'none';
+  currentSettings.showBookmarkBar = show;
+  await saveSettings();
+}
+
+// ── Save all settings to disk ──────────────────────────────
+async function saveSettings() {
+  try {
+    await window.electronAPI.saveSettings(currentSettings);
+  } catch (e) {
+    console.error('Failed to save settings:', e);
+  }
+}
+
+// ── Load settings from disk ────────────────────────────────
+async function loadSettings() {
+  try {
+    const saved = await window.electronAPI.getSettings();
+    currentSettings = saved;
+
+    // Apply loaded settings to the UI
+    // Apply loaded settings to the UI
+    homepage     = saved.homepage     || 'https://google.com';
+    searchEngine = saved.searchEngine || 'google';
+
+    // Apply theme
+    applyTheme(saved.theme || 'dark');
+
+    // Apply homepage input value
+    const homepageInput = document.getElementById('homepageInput');
+    if (homepageInput) homepageInput.value = homepage;
+
+    // Apply search engine button
+    document.querySelectorAll('.search-btn').forEach(b => b.classList.remove('active'));
+    const searchBtn = document.getElementById('search-' + searchEngine);
+    if (searchBtn) searchBtn.classList.add('active');
+
+    // Apply bookmark bar visibility
+    const bookmarkBarToggle = document.getElementById('bookmarkBarToggle');
+    if (bookmarkBarToggle) {
+      bookmarkBarToggle.checked = saved.showBookmarkBar !== false;
+      document.getElementById('bookmarkBar').style.display =
+        saved.showBookmarkBar !== false ? 'flex' : 'none';
+    }
+
+  } catch (e) {
+    currentSettings = {
+  homepage: 'https://google.com',
+  searchEngine: 'google',
+  theme: 'dark',
+  showBookmarkBar: true
+};
+  }
+}
+// ── Toast notification (replaces alert) ───────────────────
+function showToast(message) {
+  // Remove existing toast if any
+  const existing = document.getElementById('toast');
+  if (existing) existing.remove();
+
+  const toast = document.createElement('div');
+  toast.id = 'toast';
+  toast.textContent = message;
+  toast.style.cssText = `
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(30,30,50,0.95);
+    color: white;
+    padding: 12px 24px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 500;
+    border: 1px solid rgba(255,255,255,0.1);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    z-index: 999999;
+    transition: opacity 0.3s;
+  `;
+  document.body.appendChild(toast);
+
+  // Auto remove after 2.5 seconds
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    setTimeout(() => toast.remove(), 300);
+  }, 2500);
+}
+
+    // ═══════════════════════════════════════════════════════
+    // INIT
+    // ═══════════════════════════════════════════════════════
+    async function init() {
+  // Load settings first so homepage is correct before opening tab
+  await loadSettings();
+  // Then load bookmarks
+  await loadBookmarks();
+  // Then open the first tab with the correct homepage
+  addTab(homepage === 'newtab.html' ? homepage : homepage);
+}
+
+    init();
+  </script>
+</body>
+</html>

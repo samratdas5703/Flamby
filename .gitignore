@@ -1,0 +1,14 @@
+# Build artifacts – THESE ARE HUGE
+dist/
+package.zip
+*.exe
+*.blockmap
+*.yml
+win-unpacked/
+
+# Dependencies
+node_modules/
+
+# OS junk
+Thumbs.db
+Desktop.ini
