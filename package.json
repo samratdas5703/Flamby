@@ -1,7 +1,7 @@
 {
   "name": "Flamby",
-  "version": "1.0.7",
-  "description": "My Custom Browser",
+  "version": "1.0.8",
+  "description": "Flamby Browser",
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
