@@ -97,25 +97,7 @@ function writeJSON(filePath, data) {
     return false;
   }
 }
-
-// ── Create splash screen ───────────────────────────────────
-function createSplash() {
-  splashWindow = new BrowserWindow({
-    width: 500,
-    height: 380,
-    frame: false,
-    transparent: true,
-    resizable: false,
-    alwaysOnTop: true,
-    center: true,
-    webPreferences: {
-      nodeIntegration: false,
-      contextIsolation: true
-    }
-  });
-
-  splashWindow.loadFile(path.join(__dirname, 'splash.html'));
-}
+  
 
 // ── Create window ──────────────────────────────────────────
 async function createWindow() {
@@ -137,16 +119,18 @@ async function createWindow() {
     }
   });
 
+  win.maximize();
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
 
-  // Wait 3 seconds for splash to finish, then close splash and show browser
-  setTimeout(() => {
-    if (splashWindow && !splashWindow.isDestroyed()) {
-      splashWindow.close();
-    }
-    win.maximize();
-    win.show();
-  }, 3000);
+  // Once the main window is ready, wait for splash animation then switch
+  win.once('ready-to-show', () => {
+    setTimeout(() => {
+      if (splashWindow && !splashWindow.isDestroyed()) {
+        splashWindow.close();
+      }
+      win.show();
+    }, 3000); // 3 seconds — matches the splash animation
+  });
 
   win.webContents.on('before-input-event', (event, input) => {
     if (input.type === 'keyDown' && input.key === 'F11') {
@@ -442,7 +426,6 @@ app.whenReady().then(() => {
   ensureDataDir();
   downloads = readJSON(DOWNLOADS_FILE, []);
   sitePermissions = readJSON(PERMISSIONS_FILE, {});
-  createSplash();
   createWindow();
   autoUpdater.checkForUpdates();
 });
