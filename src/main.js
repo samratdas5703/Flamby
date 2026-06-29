@@ -141,6 +141,20 @@ async function createWindow() {
     });
   });
 
+  // YouTube ad-skipping: network-level blocking can't tell YouTube ads
+  // apart from real video (both stream from googlevideo.com), so instead
+  // we inject a small script into YouTube pages specifically that watches
+  // the player's own ad-state markers and auto-skips/fast-forwards them.
+  win.webContents.on('did-attach-webview', (event, contents) => {
+    contents.on('dom-ready', () => {
+      const url = contents.getURL();
+      if (/^https?:\/\/(www\.)?youtube\.com\//.test(url)) {
+        const script = fs.readFileSync(path.join(__dirname, 'youtube-adblock.js'), 'utf-8');
+        contents.executeJavaScript(script).catch(() => {});
+      }
+    });
+  });
+
   const ses = session.fromPartition('persist:main');
   await loadAdBlocker(ses);
 
