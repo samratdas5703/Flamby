@@ -5,6 +5,7 @@ const fs = require('fs');
 const { loadAdBlocker, setAdBlockerEnabled } = require('./adblocker');
 
 let win;
+let splashWindow;
 
 // ── Known-harmless rejection suppression ───────────────────
 // The ad-blocker library (@ghostery/adblocker-electron) occasionally
@@ -97,6 +98,25 @@ function writeJSON(filePath, data) {
   }
 }
 
+// ── Create splash screen ───────────────────────────────────
+function createSplash() {
+  splashWindow = new BrowserWindow({
+    width: 500,
+    height: 380,
+    frame: false,
+    transparent: true,
+    resizable: false,
+    alwaysOnTop: true,
+    center: true,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true
+    }
+  });
+
+  splashWindow.loadFile(path.join(__dirname, 'splash.html'));
+}
+
 // ── Create window ──────────────────────────────────────────
 async function createWindow() {
   win = new BrowserWindow({
@@ -107,6 +127,7 @@ async function createWindow() {
     frame: false,
     transparent: false,
     backgroundColor: '#0f0f1a',
+    show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
@@ -116,8 +137,16 @@ async function createWindow() {
     }
   });
 
-  win.maximize();
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+
+  // Wait 3 seconds for splash to finish, then close splash and show browser
+  setTimeout(() => {
+    if (splashWindow && !splashWindow.isDestroyed()) {
+      splashWindow.close();
+    }
+    win.maximize();
+    win.show();
+  }, 3000);
 
   win.webContents.on('before-input-event', (event, input) => {
     if (input.type === 'keyDown' && input.key === 'F11') {
@@ -413,6 +442,7 @@ app.whenReady().then(() => {
   ensureDataDir();
   downloads = readJSON(DOWNLOADS_FILE, []);
   sitePermissions = readJSON(PERMISSIONS_FILE, {});
+  createSplash();
   createWindow();
   autoUpdater.checkForUpdates();
 });
