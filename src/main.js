@@ -6,6 +6,13 @@ const { loadAdBlocker } = require('./adblocker');
 
 let win;
 
+// ── Auto-update configuration ──────────────────────────────
+// We want full control over the UX, so don't auto-download or
+// auto-install — just check, tell the renderer, and wait for the
+// user to click "Update" in our own in-app popup.
+autoUpdater.autoDownload = false;
+autoUpdater.autoInstallOnAppQuit = false;
+
 // ── File paths ─────────────────────────────────────────────
 const DATA_DIR        = path.join(__dirname, 'data');
 const BOOKMARKS_FILE   = path.join(DATA_DIR, 'bookmarks.json');
@@ -356,12 +363,53 @@ app.whenReady().then(() => {
   downloads = readJSON(DOWNLOADS_FILE, []);
   sitePermissions = readJSON(PERMISSIONS_FILE, {});
   createWindow();
-  autoUpdater.checkForUpdatesAndNotify();
+  autoUpdater.checkForUpdates();
 });
 
+// ── Auto-update: forward events to the renderer ────────────
+function sendUpdateEvent(channel, payload) {
+  if (win && !win.isDestroyed()) {
+    win.webContents.send(channel, payload);
+  }
+}
+
+autoUpdater.on('update-available', (info) => {
+  sendUpdateEvent('update:available', {
+    version: info.version,
+    releaseNotes: typeof info.releaseNotes === 'string' ? info.releaseNotes : null,
+    releaseDate: info.releaseDate
+  });
+});
+
+autoUpdater.on('download-progress', (progress) => {
+  sendUpdateEvent('update:progress', {
+    percent: progress.percent,
+    transferred: progress.transferred,
+    total: progress.total,
+    bytesPerSecond: progress.bytesPerSecond
+  });
+});
 
 autoUpdater.on('update-downloaded', () => {
+  sendUpdateEvent('update:downloaded', {});
+});
+
+autoUpdater.on('error', (err) => {
+  console.error('Auto-update error:', err.message);
+  sendUpdateEvent('update:error', { message: err.message });
+});
+
+// ── Auto-update: renderer-triggered actions ────────────────
+ipcMain.handle('update:download', () => {
+  autoUpdater.downloadUpdate();
+});
+
+ipcMain.handle('update:install', () => {
   autoUpdater.quitAndInstall();
+});
+
+ipcMain.handle('update:checkNow', () => {
+  autoUpdater.checkForUpdates();
 });
 
 app.on('window-all-closed', () => app.quit());

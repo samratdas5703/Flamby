@@ -166,6 +166,130 @@
       text-align: center;
       padding: 30px 10px;
     }
+
+    /* ── Update Notification ── */
+    .update-toast {
+      display: none;
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      width: 340px;
+      background: rgba(22,18,38,0.97);
+      backdrop-filter: blur(28px) saturate(180%);
+      -webkit-backdrop-filter: blur(28px) saturate(180%);
+      border: 0.5px solid rgba(255,255,255,0.16);
+      border-radius: 16px;
+      padding: 18px;
+      z-index: 999999;
+      box-shadow: 0 24px 70px rgba(0,0,0,0.55);
+      color: white;
+      animation: updateSlideIn 0.35s ease;
+    }
+    .update-toast.show { display: block; }
+    @keyframes updateSlideIn {
+      from { transform: translateY(16px); opacity: 0; }
+      to   { transform: translateY(0);    opacity: 1; }
+    }
+    .update-toast-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .update-icon {
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+      background: rgba(10,132,255,0.22);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+    .update-toast-title {
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .update-toast-version {
+      font-size: 11px;
+      color: rgba(255,255,255,0.45);
+      margin-top: 1px;
+    }
+    .update-toast-close {
+      margin-left: auto;
+      background: none;
+      border: none;
+      color: rgba(255,255,255,0.4);
+      cursor: pointer;
+      font-size: 13px;
+      padding: 4px;
+      flex-shrink: 0;
+    }
+    .update-toast-close:hover { color: white; }
+    .update-notes {
+      font-size: 12px;
+      line-height: 1.6;
+      color: rgba(255,255,255,0.7);
+      max-height: 130px;
+      overflow-y: auto;
+      margin-bottom: 14px;
+      padding-right: 4px;
+    }
+    .update-notes::-webkit-scrollbar { width: 3px; }
+    .update-notes::-webkit-scrollbar-thumb {
+      background: rgba(255,255,255,0.15);
+      border-radius: 2px;
+    }
+    .update-notes ul { padding-left: 16px; margin: 4px 0; }
+    .update-notes p { margin: 4px 0; }
+    .update-toast-buttons {
+      display: flex;
+      gap: 8px;
+    }
+    .update-btn {
+      flex: 1;
+      padding: 9px 0;
+      border-radius: 9px;
+      border: none;
+      cursor: pointer;
+      font-size: 12.5px;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+    .update-btn-primary {
+      background: #0a84ff;
+      color: white;
+    }
+    .update-btn-primary:hover { background: #0070e0; }
+    .update-btn-secondary {
+      background: rgba(255,255,255,0.1);
+      color: rgba(255,255,255,0.75);
+    }
+    .update-btn-secondary:hover { background: rgba(255,255,255,0.18); }
+    .update-btn-primary:disabled {
+      opacity: 0.6;
+      cursor: default;
+    }
+    .update-progress-track {
+      height: 5px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 3px;
+      overflow: hidden;
+      margin-bottom: 12px;
+    }
+    .update-progress-fill {
+      height: 100%;
+      background: #0a84ff;
+      border-radius: 3px;
+      transition: width 0.2s ease;
+      width: 0%;
+    }
+    .update-progress-label {
+      font-size: 11px;
+      color: rgba(255,255,255,0.5);
+      margin-bottom: 10px;
+    }
   </style>
 </head>
 <body>
@@ -271,6 +395,30 @@
     </div> <!-- /.browser-body -->
 
     <!-- Bookmark Popup Overlay -->
+    <!-- Update Notification Toast -->
+    <div class="update-toast" id="updateToast">
+      <div class="update-toast-header">
+        <div class="update-icon">⬆️</div>
+        <div>
+          <div class="update-toast-title" id="updateTitle">Update available</div>
+          <div class="update-toast-version" id="updateVersionLabel"></div>
+        </div>
+        <button class="update-toast-close" onclick="dismissUpdateToast()">✕</button>
+      </div>
+
+      <div class="update-notes" id="updateNotes"></div>
+
+      <div class="update-progress-track" id="updateProgressTrack" style="display:none">
+        <div class="update-progress-fill" id="updateProgressFill"></div>
+      </div>
+      <div class="update-progress-label" id="updateProgressLabel" style="display:none"></div>
+
+      <div class="update-toast-buttons" id="updateButtons">
+        <button class="update-btn update-btn-secondary" onclick="dismissUpdateToast()">Later</button>
+        <button class="update-btn update-btn-primary" id="updateActionBtn" onclick="handleUpdateAction()">Update now</button>
+      </div>
+    </div>
+
     <div class="popup-overlay" id="popupOverlay" onclick="closeBookmarkPopup()"></div>
 
     <!-- Bookmark Popup -->
@@ -1001,6 +1149,110 @@ function showToast(message) {
       if (justFinished) showToast(`Downloaded ${justFinished.filename}`);
 
       renderDownloads(list);
+    });
+
+    // ═══════════════════════════════════════════════════════
+    // AUTO-UPDATE
+    // ═══════════════════════════════════════════════════════
+
+    let updateState = 'idle'; // idle | available | downloading | downloaded
+
+    // Very small markdown-ish formatter so GitHub release notes
+    // (which are markdown) read reasonably instead of as raw text.
+    function formatReleaseNotes(raw) {
+      if (!raw) return '<p>No details were provided for this update.</p>';
+      let html = raw
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+
+      // Bullet lines starting with - or *
+      const lines = html.split('\n');
+      let out = '';
+      let inList = false;
+      for (const line of lines) {
+        const bullet = line.match(/^\s*[-*]\s+(.*)/);
+        if (bullet) {
+          if (!inList) { out += '<ul>'; inList = true; }
+          out += `<li>${bullet[1]}</li>`;
+        } else {
+          if (inList) { out += '</ul>'; inList = false; }
+          if (line.trim()) out += `<p>${line.trim()}</p>`;
+        }
+      }
+      if (inList) out += '</ul>';
+      return out || '<p>No details were provided for this update.</p>';
+    }
+
+    function showUpdateAvailable(info) {
+      updateState = 'available';
+      document.getElementById('updateTitle').textContent = 'Update available';
+      document.getElementById('updateVersionLabel').textContent = `Flamby v${info.version}`;
+      document.getElementById('updateNotes').innerHTML = formatReleaseNotes(info.releaseNotes);
+
+      document.getElementById('updateProgressTrack').style.display = 'none';
+      document.getElementById('updateProgressLabel').style.display = 'none';
+      document.getElementById('updateButtons').style.display = 'flex';
+
+      const actionBtn = document.getElementById('updateActionBtn');
+      actionBtn.textContent = 'Update now';
+      actionBtn.disabled = false;
+
+      document.getElementById('updateToast').classList.add('show');
+    }
+
+    function showUpdateDownloading() {
+      updateState = 'downloading';
+      document.getElementById('updateTitle').textContent = 'Downloading update…';
+      document.getElementById('updateProgressTrack').style.display = 'block';
+      document.getElementById('updateProgressLabel').style.display = 'block';
+
+      const actionBtn = document.getElementById('updateActionBtn');
+      actionBtn.textContent = 'Downloading…';
+      actionBtn.disabled = true;
+    }
+
+    function showUpdateDownloaded() {
+      updateState = 'downloaded';
+      document.getElementById('updateTitle').textContent = 'Update ready';
+      document.getElementById('updateProgressLabel').textContent = 'Downloaded — restart to install';
+
+      const actionBtn = document.getElementById('updateActionBtn');
+      actionBtn.textContent = 'Restart now';
+      actionBtn.disabled = false;
+    }
+
+    function dismissUpdateToast() {
+      document.getElementById('updateToast').classList.remove('show');
+    }
+
+    async function handleUpdateAction() {
+      if (updateState === 'available') {
+        showUpdateDownloading();
+        await window.electronAPI.downloadUpdate();
+      } else if (updateState === 'downloaded') {
+        await window.electronAPI.installUpdate();
+      }
+    }
+
+    window.electronAPI.onUpdateAvailable((info) => {
+      showUpdateAvailable(info);
+    });
+
+    window.electronAPI.onUpdateProgress((progress) => {
+      const pct = Math.round(progress.percent || 0);
+      document.getElementById('updateProgressFill').style.width = pct + '%';
+      document.getElementById('updateProgressLabel').textContent = `${pct}% downloaded`;
+    });
+
+    window.electronAPI.onUpdateDownloaded(() => {
+      showUpdateDownloaded();
+    });
+
+    window.electronAPI.onUpdateError((err) => {
+      // Quietly drop it — most "errors" here are just "no update found" /
+      // network blips, and we don't want to nag the user with a popup for that.
+      console.warn('Update check issue:', err && err.message);
     });
 
     // ═══════════════════════════════════════════════════════

@@ -1,6 +1,6 @@
 {
   "homepage": "newtab.html",
-  "searchEngine": "duckduckgo",
+  "searchEngine": "google",
   "theme": "black",
   "showBookmarkBar": true,
   "tabLayout": "horizontal",
