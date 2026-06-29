@@ -297,16 +297,22 @@ html, body {
 .tab-vertical[draggable="true"] {
   cursor: grab;
 }
-.tab.drop-target {
+/* Dropping on the middle of a tab = split with it */
+.tab.drop-target-split {
   background: rgba(10,132,255,0.30) !important;
   outline: 1.5px dashed rgba(10,132,255,0.85);
   outline-offset: -2px;
 }
-.tab-vertical.drop-target {
+.tab-vertical.drop-target-split {
   background: rgba(10,132,255,0.25) !important;
   outline: 1.5px dashed rgba(10,132,255,0.85);
   outline-offset: -2px;
 }
+/* Dropping near an edge = reorder, landing before/after this tab */
+.tab.drop-target-before { box-shadow: inset 2px 0 0 0 #0a84ff; }
+.tab.drop-target-after  { box-shadow: inset -2px 0 0 0 #0a84ff; }
+.tab-vertical.drop-target-before { box-shadow: inset 0 2px 0 0 #0a84ff; }
+.tab-vertical.drop-target-after  { box-shadow: inset 0 -2px 0 0 #0a84ff; }
 .tab.in-split,
 .tab-vertical.in-split {
   border-bottom: 2px solid #0a84ff;
@@ -350,6 +356,15 @@ html, body {
   height: 7px;
   margin-top: -3.5px;
   cursor: row-resize;
+}
+
+/* Sits above the webviews only while a resize drag is in progress, so the
+   webviews' own native surfaces don't steal the mousemove/mouseup events. */
+.split-resize-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  background: transparent;
 }
 
 .split-pane {
@@ -632,191 +647,6 @@ input:checked + .slider:before { transform: translateX(20px); }
    ══════════════════════════════════════════════════════════ */
 
 /* Row that holds the rail + the rest of the browser, below the title bar */
-.browser-body {
-  display: flex;
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.browser-main {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-}
-
-/* Hidden unless .vertical-tabs is active on .browser-shell */
-.tab-rail {
-  display: none;
-  flex-direction: column;
-  width: 230px;
-  min-width: 230px;
-  background: rgba(255,255,255,0.05);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border-right: 0.5px solid rgba(255,255,255,0.14);
-  padding: 8px;
-  gap: 6px;
-  transition: width 0.2s ease, min-width 0.2s ease;
-}
-.browser-shell.vertical-tabs .tab-rail { display: flex; }
-
-/* When vertical tabs are on, the top strip keeps only the window controls */
-.browser-shell.vertical-tabs .tab-bar .tabs,
-.browser-shell.vertical-tabs .tab-bar .new-tab-btn {
-  display: none;
-}
-
-.tab-rail-header {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
-}
-
-.rail-collapse-btn {
-  -webkit-app-region: no-drag;
-  background: rgba(255,255,255,0.10);
-  border: 0.5px solid rgba(255,255,255,0.18);
-  color: rgba(255,255,255,0.7);
-  width: 28px;
-  height: 28px;
-  min-width: 28px;
-  border-radius: 6px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 13px;
-  transition: all 0.2s;
-  flex-shrink: 0;
-}
-.rail-collapse-btn:hover { background: rgba(255,255,255,0.18); color: #ffffff; }
-
-.new-tab-btn-vertical {
-  -webkit-app-region: no-drag;
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  background: rgba(255,255,255,0.10);
-  backdrop-filter: blur(14px) saturate(180%);
-  -webkit-backdrop-filter: blur(14px) saturate(180%);
-  border: 0.5px solid rgba(255,255,255,0.18);
-  border-radius: 7px;
-  color: #ffffff;
-  height: 28px;
-  font-size: 13px;
-  cursor: pointer;
-  transition: all 0.2s;
-  white-space: nowrap;
-  overflow: hidden;
-}
-.new-tab-btn-vertical:hover { background: rgba(255,255,255,0.20); }
-
-.tabs-vertical {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  flex: 1;
-  overflow-y: auto;
-}
-.tabs-vertical::-webkit-scrollbar { width: 4px; }
-.tabs-vertical::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 2px; }
-
-.tab-vertical {
-  -webkit-app-region: no-drag;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 9px;
-  border-radius: 7px;
-  border-left: 2.5px solid transparent;
-  background: rgba(255,255,255,0.06);
-  color: rgba(255,255,255,0.65);
-  font-size: 12.5px;
-  cursor: pointer;
-  transition: all 0.2s;
-  min-height: 32px;
-  flex-shrink: 0;
-}
-.tab-vertical:hover:not(.active) {
-  background: rgba(255,255,255,0.13);
-  color: rgba(255,255,255,0.9);
-}
-.tab-vertical.active {
-  background: rgba(255,255,255,0.20);
-  border-left-color: #0a84ff;
-  color: #ffffff;
-}
-.tab-vertical-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: rgba(255,255,255,0.4);
-  flex-shrink: 0;
-}
-.tab-vertical.active .tab-vertical-dot { background: #5eb3ff; }
-.tab-vertical-title {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.tab-vertical-close {
-  background: none;
-  border: none;
-  color: inherit;
-  cursor: pointer;
-  font-size: 10px;
-  opacity: 0.4;
-  padding: 3px 5px;
-  border-radius: 4px;
-  flex-shrink: 0;
-}
-.tab-vertical-close:hover { opacity: 1; background: rgba(255,80,80,0.2); }
-
-/* Collapsed rail = icon-only strip */
-.tab-rail.collapsed { width: 56px; min-width: 56px; }
-.tab-rail.collapsed .tab-rail-header { flex-direction: column; }
-.tab-rail.collapsed .rail-collapse-btn,
-.tab-rail.collapsed .new-tab-btn-vertical { width: 100%; }
-.tab-rail.collapsed .tab-vertical-title,
-.tab-rail.collapsed .tab-vertical-close,
-.tab-rail.collapsed .new-tab-btn-vertical .label { display: none; }
-.tab-rail.collapsed .tab-vertical { justify-content: center; }
-
-
-/* ── Light theme overrides for the rail ── */
-[data-theme="light"] .tab-rail {
-  background: rgba(255,255,255,0.28);
-  border-color: rgba(0,0,0,0.10);
-}
-[data-theme="light"] .tab-vertical,
-[data-theme="light"] .tab-vertical-title,
-[data-theme="light"] .rail-collapse-btn,
-[data-theme="light"] .new-tab-btn-vertical {
-  color: #1a1a2e;
-}
-[data-theme="light"] .tab-vertical {
-  background: rgba(255,255,255,0.32);
-}
-[data-theme="light"] .tab-vertical.active {
-  background: rgba(255,255,255,0.60);
-}
-[data-theme="light"] .new-tab-btn-vertical,
-[data-theme="light"] .rail-collapse-btn {
-  background: rgba(255,255,255,0.38);
-  border-color: rgba(0,0,0,0.12);
-}
-
-/* ══════════════════════════════════════════════════════════
-   VERTICAL TABS
-   ══════════════════════════════════════════════════════════ */
-
 .browser-body {
   display: flex;
   flex: 1;

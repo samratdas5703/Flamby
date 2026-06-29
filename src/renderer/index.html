@@ -864,6 +864,20 @@
     // DRAG & DROP — reorder tabs, or drop-onto-tab to split
     // ═══════════════════════════════════════════════════════
 
+    // A drop in the middle ~50% of a tab means "split with this tab";
+    // a drop near either edge means "reorder — place it here instead".
+    function getDropZone(e) {
+      const el = e.currentTarget;
+      const rect = el.getBoundingClientRect();
+      const vertical = el.classList.contains('tab-vertical');
+      const pos = vertical ? e.clientY - rect.top : e.clientX - rect.left;
+      const size = vertical ? rect.height : rect.width;
+      const ratio = size > 0 ? pos / size : 0.5;
+      if (ratio < 0.25) return 'before';
+      if (ratio > 0.75) return 'after';
+      return 'split';
+    }
+
     function handleTabDragStart(e, id) {
       draggedTabId = id;
       e.dataTransfer.effectAllowed = 'move';
@@ -873,33 +887,37 @@
     function handleTabDragOver(e, overId) {
       if (!draggedTabId || draggedTabId === overId) return;
       e.preventDefault();
-      e.currentTarget.classList.add('drop-target');
+      const el = e.currentTarget;
+      const zone = getDropZone(e);
+      el.classList.remove('drop-target-split', 'drop-target-before', 'drop-target-after');
+      el.classList.add('drop-target-' + zone);
     }
 
     function handleTabDragLeave(e) {
-      e.currentTarget.classList.remove('drop-target');
+      e.currentTarget.classList.remove('drop-target-split', 'drop-target-before', 'drop-target-after');
     }
 
     function handleTabDragEnd(e) {
-      document.querySelectorAll('.drop-target').forEach(el => el.classList.remove('drop-target'));
+      document.querySelectorAll('.drop-target-split, .drop-target-before, .drop-target-after')
+        .forEach(el => el.classList.remove('drop-target-split', 'drop-target-before', 'drop-target-after'));
       draggedTabId = null;
     }
 
     function handleTabDrop(e, targetId) {
       e.preventDefault();
-      e.currentTarget.classList.remove('drop-target');
+      const zone = getDropZone(e);
+      e.currentTarget.classList.remove('drop-target-split', 'drop-target-before', 'drop-target-after');
       const sourceId = draggedTabId;
       draggedTabId = null;
       if (!sourceId || sourceId === targetId) return;
 
-      // Holding the drop with Alt/Option reorders instead of splitting,
-      // for people who just want to rearrange without entering split view.
-      if (e.altKey) {
+      // Drop it on the middle of another tab to split with it; drop it
+      // near an edge to just reorder past it — no modifier key needed.
+      if (zone === 'split') {
+        splitWithTab(sourceId, targetId);
+      } else {
         reorderTab(sourceId, targetId);
-        return;
       }
-
-      splitWithTab(sourceId, targetId);
     }
 
     function reorderTab(sourceId, targetId) {
@@ -1108,8 +1126,21 @@
         const startSizes = axis === 'col' ? [...sizes.cols] : [...sizes.rows];
         const totalFr = startSizes.reduce((a, b) => a + b, 0);
 
+        // <webview> is its own native surface — while the cursor is over
+        // one, the page's mousemove listener stops receiving events,
+        // which is what makes a resize feel like it's lagging/sticking.
+        // A transparent overlay above everything keeps the drag on the
+        // document instead of letting the webviews intercept it.
+        const overlay = document.createElement('div');
+        overlay.className = 'split-resize-overlay';
+        overlay.style.cursor = axis === 'col' ? 'col-resize' : 'row-resize';
+        container.appendChild(overlay);
+
         document.body.style.cursor = axis === 'col' ? 'col-resize' : 'row-resize';
         document.body.style.userSelect = 'none';
+
+        let pendingSizes = startSizes;
+        let rafId = null;
 
         function onMouseMove(e) {
           const currentPos = axis === 'col' ? e.clientX : e.clientY;
@@ -1119,30 +1150,45 @@
           let first = startSizes[0] + deltaFr;
           let second = startSizes[1] - deltaFr;
 
-          // Keep a sane minimum so a pane can't be dragged down to nothing.
           const minFr = totalFr * 0.15;
           if (first < minFr) { second -= (minFr - first); first = minFr; }
           if (second < minFr) { first -= (minFr - second); second = minFr; }
 
-          const newSizes = [first, second];
-          splitSizes = splitSizes || defaultSplitSizes(splitGroup.length);
-          if (axis === 'col') {
-            splitSizes.cols = newSizes;
-          } else {
-            splitSizes.rows = newSizes;
-          }
-          const { cols, rows } = splitGridTemplate(splitGroup.length);
-          container.style.gridTemplateColumns = cols;
-          container.style.gridTemplateRows = rows;
-          positionResizer(handle, axis, splitSizes);
+          pendingSizes = [first, second];
+
+          // Only move the handle line live (cheap, pure CSS). Resizing the
+          // actual grid/webviews on every single mousemove is the other
+          // half of the lag — each one forces an expensive native resize
+          // of the webview's own process — so that's deferred to mouseup.
+          if (rafId) return;
+          rafId = requestAnimationFrame(() => {
+            rafId = null;
+            const tempSizes = {
+              cols: axis === 'col' ? pendingSizes : sizes.cols,
+              rows: axis === 'row' ? pendingSizes : sizes.rows
+            };
+            positionResizer(handle, axis, tempSizes);
+          });
         }
 
         function onMouseUp() {
           document.removeEventListener('mousemove', onMouseMove);
           document.removeEventListener('mouseup', onMouseUp);
+          overlay.remove();
           document.body.style.cursor = '';
           document.body.style.userSelect = '';
-          // Nudge webviews to repaint at their new size, same trick as on creation.
+
+          // Commit the real layout once, at the end of the drag — this is
+          // the one moment the webviews actually get resized.
+          splitSizes = splitSizes || defaultSplitSizes(splitGroup.length);
+          if (axis === 'col') splitSizes.cols = pendingSizes;
+          else splitSizes.rows = pendingSizes;
+
+          const { cols, rows } = splitGridTemplate(splitGroup.length);
+          container.style.gridTemplateColumns = cols;
+          container.style.gridTemplateRows = rows;
+          positionResizer(handle, axis, splitSizes);
+
           document.querySelectorAll('.split-pane webview').forEach(wv => {
             wv.style.display = 'none';
             requestAnimationFrame(() => { wv.style.display = 'flex'; });
