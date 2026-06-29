@@ -6,6 +6,23 @@ const { loadAdBlocker } = require('./adblocker');
 
 let win;
 
+// ── Known-harmless rejection suppression ───────────────────
+// The ad-blocker library (@ghostery/adblocker-electron) occasionally
+// re-injects its cosmetic-filter script into a page that's still mid
+// single-page-app navigation (e.g. YouTube), which throws a benign
+// "Identifier has already been declared" / "Script failed to execute"
+// rejection from inside the library's own executeJavaScript call. The
+// page itself keeps working fine — this only silences that specific
+// known noise so it doesn't flood the terminal; anything else still
+// surfaces normally.
+process.on('unhandledRejection', (reason) => {
+  const message = (reason && reason.message) || String(reason || '');
+  if (message.includes('Script failed to execute')) {
+    return; // swallow only this known, harmless pattern
+  }
+  console.error('Unhandled promise rejection:', reason);
+});
+
 // ── Auto-update configuration ──────────────────────────────
 // We want full control over the UX, so don't auto-download or
 // auto-install — just check, tell the renderer, and wait for the
@@ -109,8 +126,13 @@ async function createWindow() {
     }
   });
 
-  // Webview guest pages get their own WebContents — catch F11 there too
+  // Webview guest pages get their own WebContents — catch F11 there too,
+  // and raise their listener cap since the adblocker library attaches one
+  // tracking-detection listener per guest webContents (expected, not a leak).
   win.webContents.on('did-attach-webview', (event, contents) => {
+    contents.setMaxListeners(0); // 0 = unlimited; the ad-blocker library attaches
+    // one listener per webview by design, so a fixed cap will always eventually
+    // be exceeded the more tabs someone opens in a session — this isn't a real leak.
     contents.on('before-input-event', (e, input) => {
       if (input.type === 'keyDown' && input.key === 'F11') {
         win.setFullScreen(!win.isFullScreen());

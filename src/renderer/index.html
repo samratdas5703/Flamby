@@ -547,6 +547,13 @@
     let searchEngine    = 'google';
     let tabs            = [];
     let activeTab       = null;
+
+    // ── Split view state ────────────────────────────────────
+    // splitGroup: ordered array of tab ids currently shown side-by-side (max 4).
+    // null/[] means no split — normal single-tab view.
+    let splitGroup = [];
+    let splitSizes = null; // { cols: [fr,fr,...], rows: [fr,fr,...] } — null = use even defaults
+    let draggedTabId = null;
     let bookmarks       = [];
     let currentSettings = {};
 
@@ -721,8 +728,16 @@
       const tab = { id, url, title: 'New Tab' };
       tabs.push(tab);
       createWebview(tab);
-      switchTab(id);
-      renderTabs();
+
+      if (splitGroup.length) {
+        // Don't disturb an active split — the new tab opens in the background.
+        // It'll only take over the view if the user clicks it or drags it
+        // into/out of the split themselves.
+        renderTabs();
+      } else {
+        switchTab(id);
+        renderTabs();
+      }
     }
 
     function createWebview(tab) {
@@ -758,6 +773,17 @@
 
     function switchTab(id) {
       activeTab = id;
+      if (splitGroup.length) {
+        // In split view, clicking a tab that's already in the split just
+        // focuses it (for toolbar/url-bar purposes) without leaving split mode.
+        if (splitGroup.includes(id)) {
+          renderSplitFocus();
+          renderTabs();
+          return;
+        }
+        // Switching to a tab outside the split exits split view entirely.
+        exitSplitView();
+      }
       document.querySelectorAll('#webviewContainer webview').forEach(wv => {
         wv.style.display = 'none';
       });
@@ -779,8 +805,19 @@
       tabs = tabs.filter(t => t.id !== id);
       const wv = document.getElementById('wv-' + id);
       if (wv) wv.remove();
+
+      if (splitGroup.includes(id)) {
+        splitGroup = splitGroup.filter(tid => tid !== id);
+        splitSizes = null;
+        if (splitGroup.length < 2) {
+          exitSplitView(splitGroup[0] || (tabs[0] && tabs[0].id));
+        } else {
+          renderSplitView();
+        }
+      }
+
       if (tabs.length === 0) { addTab(); return; }
-      if (activeTab === id) {
+      if (activeTab === id && !splitGroup.length) {
         const newIndex = Math.min(index, tabs.length - 1);
         switchTab(tabs[newIndex].id);
       }
@@ -790,7 +827,13 @@
     function renderTabs() {
       const list = document.getElementById('tabList');
       list.innerHTML = tabs.map(t => `
-        <div class="tab ${t.id === activeTab ? 'active' : ''}"
+        <div class="tab ${t.id === activeTab ? 'active' : ''} ${splitGroup.includes(t.id) ? 'in-split' : ''}"
+             draggable="true"
+             ondragstart="handleTabDragStart(event, '${t.id}')"
+             ondragover="handleTabDragOver(event, '${t.id}')"
+             ondragleave="handleTabDragLeave(event)"
+             ondrop="handleTabDrop(event, '${t.id}')"
+             ondragend="handleTabDragEnd(event)"
              onclick="switchTab('${t.id}')">
           <span class="tab-title">${t.title}</span>
           <button class="tab-close" onclick="closeTab('${t.id}', event)">✕</button>
@@ -799,7 +842,13 @@
       const rail = document.getElementById('tabListVertical');
       if (rail) {
         rail.innerHTML = tabs.map(t => `
-          <div class="tab-vertical ${t.id === activeTab ? 'active' : ''}"
+          <div class="tab-vertical ${t.id === activeTab ? 'active' : ''} ${splitGroup.includes(t.id) ? 'in-split' : ''}"
+               draggable="true"
+               ondragstart="handleTabDragStart(event, '${t.id}')"
+               ondragover="handleTabDragOver(event, '${t.id}')"
+               ondragleave="handleTabDragLeave(event)"
+               ondrop="handleTabDrop(event, '${t.id}')"
+               ondragend="handleTabDragEnd(event)"
                onclick="switchTab('${t.id}')"
                title="${(t.title || '').replace(/"/g, '&quot;')}">
             <span class="tab-vertical-dot"></span>
@@ -807,6 +856,327 @@
             <button class="tab-vertical-close" onclick="closeTab('${t.id}', event)">✕</button>
           </div>`).join('');
       }
+
+      if (splitGroup.length) updateSplitPaneLabels();
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // DRAG & DROP — reorder tabs, or drop-onto-tab to split
+    // ═══════════════════════════════════════════════════════
+
+    function handleTabDragStart(e, id) {
+      draggedTabId = id;
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', id);
+    }
+
+    function handleTabDragOver(e, overId) {
+      if (!draggedTabId || draggedTabId === overId) return;
+      e.preventDefault();
+      e.currentTarget.classList.add('drop-target');
+    }
+
+    function handleTabDragLeave(e) {
+      e.currentTarget.classList.remove('drop-target');
+    }
+
+    function handleTabDragEnd(e) {
+      document.querySelectorAll('.drop-target').forEach(el => el.classList.remove('drop-target'));
+      draggedTabId = null;
+    }
+
+    function handleTabDrop(e, targetId) {
+      e.preventDefault();
+      e.currentTarget.classList.remove('drop-target');
+      const sourceId = draggedTabId;
+      draggedTabId = null;
+      if (!sourceId || sourceId === targetId) return;
+
+      // Holding the drop with Alt/Option reorders instead of splitting,
+      // for people who just want to rearrange without entering split view.
+      if (e.altKey) {
+        reorderTab(sourceId, targetId);
+        return;
+      }
+
+      splitWithTab(sourceId, targetId);
+    }
+
+    function reorderTab(sourceId, targetId) {
+      const fromIndex = tabs.findIndex(t => t.id === sourceId);
+      const toIndex = tabs.findIndex(t => t.id === targetId);
+      if (fromIndex === -1 || toIndex === -1) return;
+      const [moved] = tabs.splice(fromIndex, 1);
+      tabs.splice(toIndex, 0, moved);
+      renderTabs();
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // SPLIT VIEW — up to 4 tabs side by side
+    // ═══════════════════════════════════════════════════════
+
+    function splitWithTab(sourceId, targetId) {
+      if (!splitGroup.length) {
+        // Starting a fresh split with exactly these two tabs.
+        splitGroup = [targetId, sourceId];
+      } else if (splitGroup.includes(targetId) && !splitGroup.includes(sourceId)) {
+        // Adding a third/fourth tab onto an existing split pane.
+        if (splitGroup.length >= 4) {
+          showToast('Split view supports up to 4 tabs');
+          return;
+        }
+        splitGroup.push(sourceId);
+      } else if (!splitGroup.includes(sourceId) && !splitGroup.includes(targetId)) {
+        splitGroup = [targetId, sourceId];
+      } else {
+        return; // both already in split, or nothing meaningful to do
+      }
+      splitSizes = null; // pane count changed — fall back to even sizing
+      activeTab = sourceId;
+      renderSplitView();
+      renderTabs();
+    }
+
+    function exitSplitView(focusId) {
+      const keepId = focusId || activeTab || splitGroup[0];
+      const container = document.getElementById('webviewContainer');
+
+      // Move every webview back out of its pane wrapper directly into the container
+      document.querySelectorAll('.split-pane webview').forEach(wv => {
+        wv.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;border:none;display:none';
+        container.appendChild(wv);
+      });
+      document.querySelectorAll('.split-pane').forEach(el => el.remove());
+
+      splitGroup = [];
+      splitSizes = null;
+      container.classList.remove('split-active');
+      delete container.dataset.splitCount;
+      container.style.gridTemplateColumns = '';
+      container.style.gridTemplateRows = '';
+      if (keepId) switchTab(keepId);
+    }
+
+    function defaultSplitSizes(count) {
+      if (count === 2) return { cols: [1, 1], rows: [1] };
+      return { cols: [1, 1], rows: [1, 1] }; // 3 (pane 3 spans full row) or 4 (2x2)
+    }
+
+    function splitGridTemplate(count) {
+      const sizes = splitSizes || defaultSplitSizes(count);
+      return {
+        cols: sizes.cols.map(f => `${f}fr`).join(' '),
+        rows: sizes.rows.map(f => `${f}fr`).join(' ')
+      };
+    }
+
+    function renderSplitView() {
+      const container = document.getElementById('webviewContainer');
+
+      // If the pane structure already matches splitGroup, don't touch the DOM
+      // at all — reparenting a live <webview> breaks its painted contents,
+      // so we only rebuild when the actual set/order of split tabs changes.
+      const existingPaneIds = Array.from(container.querySelectorAll('.split-pane'))
+        .map(p => p.dataset.tabId);
+      const alreadyCorrect = existingPaneIds.length === splitGroup.length &&
+        existingPaneIds.every((id, i) => id === splitGroup[i]);
+      if (alreadyCorrect) {
+        updateSplitPaneLabels();
+        return;
+      }
+
+      container.classList.add('split-active');
+      container.dataset.splitCount = String(splitGroup.length);
+
+      const { cols, rows } = splitGridTemplate(splitGroup.length);
+      container.style.gridTemplateColumns = cols;
+      container.style.gridTemplateRows = rows;
+
+      // Tear down old pane wrappers/resizers, but keep webviews around to reuse.
+      document.querySelectorAll('.split-pane webview').forEach(wv => container.appendChild(wv));
+      document.querySelectorAll('.split-pane, .split-resizer').forEach(el => el.remove());
+
+      // Any tab not in the split stays hidden as a loose child of the container.
+      tabs.forEach(t => {
+        const wv = document.getElementById('wv-' + t.id);
+        if (wv && !splitGroup.includes(t.id)) wv.style.display = 'none';
+      });
+
+      splitGroup.forEach((id, order) => {
+        const tab = tabs.find(t => t.id === id);
+        const wv = document.getElementById('wv-' + id);
+        if (!tab || !wv) return;
+
+        const pane = document.createElement('div');
+        pane.className = 'split-pane';
+        pane.dataset.tabId = id;
+        if (splitGroup.length === 3 && order === 2) {
+          pane.style.gridColumn = '1 / span 2';
+        }
+
+        const header = document.createElement('div');
+        header.className = 'split-pane-header' + (id === activeTab ? ' active' : '');
+        header.innerHTML = `
+          <span class="split-pane-title">${tab.title || 'New Tab'}</span>
+          <button class="split-pane-close" title="Remove from split">✕</button>
+        `;
+        header.addEventListener('click', (e) => {
+          if (e.target.closest('.split-pane-close')) return;
+          activeTab = id;
+          renderSplitFocus();
+          renderTabs();
+        });
+        header.querySelector('.split-pane-close').addEventListener('click', (e) => {
+          e.stopPropagation();
+          splitGroup = splitGroup.filter(tid => tid !== id);
+          splitSizes = null;
+          if (splitGroup.length < 2) {
+            exitSplitView(splitGroup[0] || id);
+          } else {
+            renderSplitView();
+          }
+          renderTabs();
+        });
+
+        const body = document.createElement('div');
+        body.className = 'split-pane-body';
+        wv.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;border:none;display:flex';
+        body.appendChild(wv);
+
+        pane.appendChild(header);
+        pane.appendChild(body);
+        container.appendChild(pane);
+
+        // Reparenting a <webview> can leave its compositor thinking it still
+        // has the old size/visibility, so force a hard re-layout: toggling
+        // display off/on is a reliable way to make Chromium's compositor
+        // actually repaint the guest page at its new size.
+        requestAnimationFrame(() => {
+          wv.style.display = 'none';
+          requestAnimationFrame(() => {
+            wv.style.display = 'flex';
+            window.dispatchEvent(new Event('resize'));
+          });
+        });
+      });
+
+      attachSplitResizers(container, splitGroup.length);
+    }
+
+    // ── Drag-to-resize handles between split panes ─────────────
+    function attachSplitResizers(container, count) {
+      const sizes = splitSizes || defaultSplitSizes(count);
+
+      // Vertical resizer (drag left/right) between column 1 and 2 —
+      // present for 2, 3, or 4 panes since they all have a 2-column layout.
+      const vResizer = document.createElement('div');
+      vResizer.className = 'split-resizer split-resizer-v';
+      positionResizer(vResizer, 'col', sizes);
+      container.appendChild(vResizer);
+      makeResizerDraggable(vResizer, container, 'col', sizes);
+
+      // Horizontal resizer (drag up/down) between row 1 and 2 —
+      // only present for 3 or 4 panes (2-row layouts).
+      if (count >= 3) {
+        const hResizer = document.createElement('div');
+        hResizer.className = 'split-resizer split-resizer-h';
+        positionResizer(hResizer, 'row', sizes);
+        container.appendChild(hResizer);
+        makeResizerDraggable(hResizer, container, 'row', sizes);
+      }
+    }
+
+    // Places a resizer handle at the boundary implied by the current fr ratio,
+    // since that boundary moves once the user has dragged away from 50/50.
+    function positionResizer(handle, axis, sizes) {
+      const values = axis === 'col' ? sizes.cols : sizes.rows;
+      const ratio = values[0] / (values[0] + values[1]); // 0..1
+      const pct = ratio * 100;
+      if (axis === 'col') {
+        handle.style.left = `${pct}%`;
+      } else {
+        handle.style.top = `${pct}%`;
+      }
+    }
+
+    function makeResizerDraggable(handle, container, axis, sizes) {
+      handle.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        const rect = container.getBoundingClientRect();
+        const startPos = axis === 'col' ? e.clientX : e.clientY;
+        const totalSize = axis === 'col' ? rect.width : rect.height;
+        const startSizes = axis === 'col' ? [...sizes.cols] : [...sizes.rows];
+        const totalFr = startSizes.reduce((a, b) => a + b, 0);
+
+        document.body.style.cursor = axis === 'col' ? 'col-resize' : 'row-resize';
+        document.body.style.userSelect = 'none';
+
+        function onMouseMove(e) {
+          const currentPos = axis === 'col' ? e.clientX : e.clientY;
+          const deltaPx = currentPos - startPos;
+          const deltaFr = (deltaPx / totalSize) * totalFr;
+
+          let first = startSizes[0] + deltaFr;
+          let second = startSizes[1] - deltaFr;
+
+          // Keep a sane minimum so a pane can't be dragged down to nothing.
+          const minFr = totalFr * 0.15;
+          if (first < minFr) { second -= (minFr - first); first = minFr; }
+          if (second < minFr) { first -= (minFr - second); second = minFr; }
+
+          const newSizes = [first, second];
+          splitSizes = splitSizes || defaultSplitSizes(splitGroup.length);
+          if (axis === 'col') {
+            splitSizes.cols = newSizes;
+          } else {
+            splitSizes.rows = newSizes;
+          }
+          const { cols, rows } = splitGridTemplate(splitGroup.length);
+          container.style.gridTemplateColumns = cols;
+          container.style.gridTemplateRows = rows;
+          positionResizer(handle, axis, splitSizes);
+        }
+
+        function onMouseUp() {
+          document.removeEventListener('mousemove', onMouseMove);
+          document.removeEventListener('mouseup', onMouseUp);
+          document.body.style.cursor = '';
+          document.body.style.userSelect = '';
+          // Nudge webviews to repaint at their new size, same trick as on creation.
+          document.querySelectorAll('.split-pane webview').forEach(wv => {
+            wv.style.display = 'none';
+            requestAnimationFrame(() => { wv.style.display = 'flex'; });
+          });
+          window.dispatchEvent(new Event('resize'));
+        }
+
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+      });
+    }
+
+    // Cheap, non-destructive: just refresh titles/active-state text on
+    // existing pane headers without touching any webview's DOM position.
+    function updateSplitPaneLabels() {
+      document.querySelectorAll('.split-pane').forEach(pane => {
+        const id = pane.dataset.tabId;
+        const tab = tabs.find(t => t.id === id);
+        const header = pane.querySelector('.split-pane-header');
+        if (!tab || !header) return;
+        header.classList.toggle('active', id === activeTab);
+        const titleEl = header.querySelector('.split-pane-title');
+        if (titleEl) titleEl.textContent = tab.title || 'New Tab';
+      });
+    }
+
+    function renderSplitFocus() {
+      const tab = tabs.find(t => t.id === activeTab);
+      if (tab) {
+        document.getElementById('urlBar').value = displayUrl(tab.url || '');
+        updateStar(tab.url || '');
+      }
+      document.querySelectorAll('.split-pane-header').forEach(h => h.classList.remove('active'));
+      renderSplitView();
     }
 
     // ═══════════════════════════════════════════════════════
