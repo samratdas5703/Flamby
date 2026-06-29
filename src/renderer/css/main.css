@@ -84,11 +84,13 @@ html, body {
   border: none;
   color: inherit;
   cursor: pointer;
-  font-size: 10px;
   opacity: 0.4;
   padding: 2px 4px;
   border-radius: 4px;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .tab-close:hover { opacity: 1; background: rgba(255,80,80,0.2); }
 
@@ -230,6 +232,27 @@ html, body {
   border: 0.5px solid rgba(10,132,255,0.35);
   color: #5eb3ff;
 }
+.badge.purple {
+  background: rgba(175,82,222,0.18);
+  border: 0.5px solid rgba(175,82,222,0.4);
+  color: #d49aff;
+}
+.badge-toggle {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+.badge-toggle:hover { filter: brightness(1.15); }
+.badge-toggle.off {
+  background: rgba(255,255,255,0.08);
+  border: 0.5px solid rgba(255,255,255,0.16);
+  color: rgba(255,255,255,0.4);
+}
+.badge-toggle svg { flex-shrink: 0; }
 
 /* ── Bookmark Bar ── */
 .bookmark-bar {
@@ -269,9 +292,11 @@ html, body {
   border: none;
   color: inherit;
   cursor: pointer;
-  font-size: 9px;
   opacity: 0.3;
   margin-left: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 .bm-remove:hover { opacity: 1; color: #ff5f57; }
 
@@ -406,11 +431,13 @@ html, body {
   border: none;
   color: inherit;
   cursor: pointer;
-  font-size: 10px;
   opacity: 0.5;
   padding: 2px 5px;
   border-radius: 4px;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .split-pane-close:hover { opacity: 1; background: rgba(255,80,80,0.3); }
 
@@ -470,8 +497,10 @@ html, body {
   height: 30px;
   border-radius: 50%;
   cursor: pointer;
-  font-size: 14px;
   transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .close-settings:hover { background: rgba(255,80,80,0.3); }
 
@@ -488,7 +517,11 @@ html, body {
   text-transform: uppercase;
   letter-spacing: 1px;
   margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
 }
+.settings-section h3 svg { flex-shrink: 0; }
 
 .theme-options, .search-options { display: flex; flex-wrap: wrap; gap: 8px; }
 .theme-btn, .search-btn {
@@ -502,12 +535,63 @@ html, body {
   cursor: pointer;
   font-size: 13px;
   transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 7px;
 }
 .theme-btn:hover, .search-btn:hover { background: rgba(255,255,255,0.16); color: #ffffff; }
 .theme-btn.active, .search-btn.active {
   background: rgba(10,132,255,0.25);
   border-color: rgba(10,132,255,0.5);
   color: #5eb3ff;
+}
+
+/* ── Premium circular theme swatches ── */
+.theme-swatches { display: flex; flex-wrap: wrap; gap: 10px; }
+.theme-swatch {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255,255,255,0.22);
+  cursor: pointer;
+  padding: 0;
+  position: relative;
+  transition: transform 0.15s, border-color 0.15s;
+  flex-shrink: 0;
+}
+.theme-swatch:hover { transform: scale(1.12); }
+.theme-swatch.active {
+  border-color: #ffffff;
+  box-shadow: 0 0 0 2px rgba(255,255,255,0.15);
+}
+.theme-swatch.active::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 4px rgba(0,0,0,0.6);
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%,-50%);
+}
+.theme-swatch-custom {
+  border-style: dashed;
+  background: conic-gradient(from 180deg, #ff5f57, #f5a623, #34c759, #0a84ff, #af52de, #ff5f57);
+  display: block;
+}
+.theme-swatch-custom input[type="color"] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  border: none;
+  padding: 0;
 }
 
 .settings-input {
@@ -579,6 +663,9 @@ html, body {
 }
 input:checked + .slider { background: rgba(10,132,255,0.85); }
 input:checked + .slider:before { transform: translateX(20px); }
+
+.toggle-green input:checked + .slider { background: rgba(52,199,89,0.9); }
+.toggle-purple input:checked + .slider { background: rgba(175,82,222,0.9); }
 
 .bm-list-item {
   display: flex;
@@ -786,11 +873,13 @@ input:checked + .slider:before { transform: translateX(20px); }
   border: none;
   color: inherit;
   cursor: pointer;
-  font-size: 10px;
   opacity: 0.4;
   padding: 3px 5px;
   border-radius: 4px;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .tab-vertical-close:hover { opacity: 1; background: rgba(255,80,80,0.2); }
 

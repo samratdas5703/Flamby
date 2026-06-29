@@ -49,7 +49,7 @@
   .search-pill:focus-within {
     box-shadow: 0 4px 28px rgba(0,0,0,0.28);
   }
-  .search-icon { color: #888; flex-shrink: 0; font-size: 16px; }
+  .search-icon { color: #888; flex-shrink: 0; display: flex; align-items: center; }
   .search-input {
     flex: 1;
     background: none;
@@ -135,13 +135,17 @@
     border-radius: 50%;
     background: rgba(255,255,255,0.9);
     border: none;
-    font-size: 16px;
     cursor: pointer;
     box-shadow: 0 2px 10px rgba(0,0,0,0.25);
     z-index: 100;
     transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #1a1a1a;
   }
   .bg-settings-btn:hover { transform: scale(1.08); }
+  .bg-settings-btn svg { width: 18px; height: 18px; }
 
   .bg-panel {
     display: none;
@@ -163,102 +167,172 @@
   .bg-section { margin-bottom: 16px; }
   .bg-label { font-size: 12px; color: rgba(255,255,255,0.6); margin-bottom: 8px; }
 
-  .bg-categories {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-  }
-  .bg-categories button {
-    background: rgba(255,255,255,0.1);
-    border: 0.5px solid rgba(255,255,255,0.18);
-    color: #fff;
-    font-size: 12px;
-    padding: 6px 10px;
-    border-radius: 8px;
-    cursor: pointer;
-  }
-  .bg-categories button:hover { background: rgba(255,255,255,0.2); }
-
-  #bgUpload {
-    font-size: 12px;
-    color: rgba(255,255,255,0.8);
-    width: 100%;
-  }
-
+  /* ── Solid color picker ── */
   .bg-colors {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: 9px;
     align-items: center;
   }
   .color-swatch {
-    width: 26px;
-    height: 26px;
+    width: 28px;
+    height: 28px;
     border-radius: 50%;
-    border: 1.5px solid rgba(255,255,255,0.4);
+    border: 1.5px solid rgba(255,255,255,0.25);
     cursor: pointer;
     padding: 0;
+    position: relative;
+    transition: transform 0.15s, border-color 0.15s;
   }
   .color-swatch:hover { transform: scale(1.12); }
-  #customColor {
-    width: 26px;
-    height: 26px;
-    border: none;
+  .color-swatch.active {
+    border-color: #ffffff;
+    box-shadow: 0 0 0 2px rgba(255,255,255,0.15);
+  }
+  .color-swatch.active::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 0 4px rgba(0,0,0,0.5);
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%,-50%);
+  }
+  .swatch-custom {
+    width: 28px;
+    height: 28px;
     border-radius: 50%;
     cursor: pointer;
     padding: 0;
-    background: none;
+    border: 1.5px dashed rgba(255,255,255,0.4);
+    background: conic-gradient(from 180deg, #ff5f57, #f5a623, #34c759, #0a84ff, #af52de, #ff5f57);
+    position: relative;
+    flex-shrink: 0;
   }
+  .swatch-custom input[type="color"] {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+    border: none;
+    padding: 0;
+  }
+  .swatch-custom:hover { transform: scale(1.12); }
+
+  /* ── Themed "Choose file" control ── */
+  .file-control {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 0.5px solid rgba(255,255,255,0.18);
+    background: rgba(255,255,255,0.06);
+  }
+  .file-control-btn {
+    background: rgba(255,255,255,0.12);
+    border: none;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 8px 14px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s;
+    flex-shrink: 0;
+  }
+  .file-control-btn:hover { background: rgba(255,255,255,0.2); }
+  .file-control-name {
+    font-size: 12px;
+    color: rgba(255,255,255,0.55);
+    padding: 0 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+  }
+  #bgUpload { display: none; }
 
   .bg-reset {
     width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
     background: rgba(255,255,255,0.1);
     border: 0.5px solid rgba(255,255,255,0.18);
     color: #fff;
     font-size: 12px;
-    padding: 8px;
+    padding: 9px;
     border-radius: 8px;
     cursor: pointer;
+    transition: background 0.15s;
   }
   .bg-reset:hover { background: rgba(255,255,255,0.2); }
+  .bg-reset svg { flex-shrink: 0; }
 </style>
 </head>
 <body>
 
-  <img class="bg-photo" id="bgPhoto" src="https://source.unsplash.com/random/1920x1080/?nature,landscape" alt=""/>
-  <button class="bg-settings-btn" id="bgSettingsBtn" onclick="toggleBgPanel()" title="Change background">🖼️</button>
+  <img class="bg-photo" id="bgPhoto" src="" alt=""/>
+  <button class="bg-settings-btn" id="bgSettingsBtn" onclick="toggleBgPanel()" title="Change background">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="1.75" fill="currentColor" stroke="none"/><path d="M21 15l-5-5L5 21"/></svg>
+  </button>
 
   <div class="bg-panel" id="bgPanel">
     <h3>Background</h3>
 
     <div class="bg-section">
-      <p class="bg-label">Photo category</p>
-      <div class="bg-categories">
-        <button onclick="setCategory('nature')">🌿 Nature</button>
-        <button onclick="setCategory('city')">🏙️ City</button>
-        <button onclick="setCategory('ocean')">🌊 Ocean</button>
-        <button onclick="setCategory('space')">🌌 Space</button>
-        <button onclick="setCategory('mountains')">⛰️ Mountains</button>
-        <button onclick="setCategory('autumn')">🍂 Autumn</button>
+      <p class="bg-label">Solid color</p>
+      <div class="bg-colors" id="colorSwatches">
+        <button class="color-swatch" style="background:#2b3a4a" data-color="#2b3a4a" onclick="setColor('#2b3a4a')" title="Slate"></button>
+        <button class="color-swatch" style="background:#1a0a2e" data-color="#1a0a2e" onclick="setColor('#1a0a2e')" title="Midnight"></button>
+        <button class="color-swatch" style="background:#0a2540" data-color="#0a2540" onclick="setColor('#0a2540')" title="Ocean"></button>
+        <button class="color-swatch" style="background:#1e4d33" data-color="#1e4d33" onclick="setColor('#1e4d33')" title="Forest"></button>
+        <button class="color-swatch" style="background:#4e342e" data-color="#4e342e" onclick="setColor('#4e342e')" title="Espresso"></button>
+        <button class="color-swatch" style="background:#3d3d3d" data-color="#3d3d3d" onclick="setColor('#3d3d3d')" title="Graphite"></button>
+        <button class="color-swatch" style="background:#000000" data-color="#000000" onclick="setColor('#000000')" title="Black"></button>
+        <label class="swatch-custom" title="Custom color">
+          <input type="color" id="customColorInput" oninput="setColor(this.value)"/>
+        </label>
       </div>
     </div>
 
     <div class="bg-section">
       <p class="bg-label">Your own photo</p>
+      <div class="file-control">
+        <button type="button" class="file-control-btn" onclick="document.getElementById('bgUpload').click()">Choose file</button>
+        <span class="file-control-name" id="fileChosenName">No file chosen</span>
+      </div>
       <input type="file" id="bgUpload" accept="image/*" onchange="handleUpload(event)"/>
     </div>
 
     <div class="bg-section">
       <p class="bg-label">Photo</p>
-      <button class="bg-reset" onclick="setRandomPhoto()">🔀 New random photo</button>
+      <button class="bg-reset" onclick="setRandomPhoto()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>
+        New random photo
+      </button>
     </div>
 
-    <button class="bg-reset" onclick="resetBackground()">Reset to random photo</button>
+    <button class="bg-reset" onclick="resetBackground()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+      Reset to random photo
+    </button>
   </div>
 
   <div class="dashboard">
     <div class="search-pill">
-      <span class="search-icon">🔍</span>
+      <span class="search-icon">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      </span>
       <input
         class="search-input"
         id="searchInput"
@@ -272,8 +346,7 @@
   </div>
 
   <script>
-    // ── Background photo: new one each visit ───────────────
-    // ── Background: category photo, custom upload, or solid color ──
+    // ── Background: random photo by default, custom upload, or solid color ──
     const bgImg = document.getElementById('bgPhoto');
 
     function applyPhoto() {
@@ -286,11 +359,16 @@
       bgImg.src = `https://picsum.photos/1920/1080?random=${Date.now()}`;
     }
 
+    function clearActiveSwatch() {
+      document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('active'));
+    }
+
     function setRandomPhoto() {
       localStorage.setItem('flamby_bg_mode', 'photo');
       localStorage.removeItem('flamby_bg_value');
+      clearActiveSwatch();
       applyPhoto();
-      toggleBgPanel();  
+      toggleBgPanel();
     }
 
     function setColor(color) {
@@ -298,16 +376,23 @@
       localStorage.setItem('flamby_bg_value', color);
       bgImg.style.display = 'none';
       document.body.style.background = color;
+
+      clearActiveSwatch();
+      const match = document.querySelector(`.color-swatch[data-color="${color}"]`);
+      if (match) match.classList.add('active');
+
       toggleBgPanel();
     }
 
     function handleUpload(event) {
       const file = event.target.files[0];
       if (!file) return;
+      document.getElementById('fileChosenName').textContent = file.name;
       const reader = new FileReader();
       reader.onload = function (e) {
         localStorage.setItem('flamby_bg_mode', 'upload');
         localStorage.setItem('flamby_bg_value', e.target.result);
+        clearActiveSwatch();
         document.body.style.background = '';
         bgImg.style.display = 'block';
         bgImg.onerror = null;
@@ -320,6 +405,8 @@
     function resetBackground() {
       localStorage.removeItem('flamby_bg_mode');
       localStorage.removeItem('flamby_bg_value');
+      document.getElementById('fileChosenName').textContent = 'No file chosen';
+      clearActiveSwatch();
       applyPhoto();
       toggleBgPanel();
     }
@@ -328,13 +415,16 @@
       document.getElementById('bgPanel').classList.toggle('open');
     }
 
-    // Load saved background preference, or default to random nature photo
+    // Default is always a random photo unless the user explicitly chose
+    // a solid color or uploaded their own photo.
     (function initBackground() {
       const mode = localStorage.getItem('flamby_bg_mode');
       const value = localStorage.getItem('flamby_bg_value');
       if (mode === 'color' && value) {
         bgImg.style.display = 'none';
         document.body.style.background = value;
+        const match = document.querySelector(`.color-swatch[data-color="${value}"]`);
+        if (match) match.classList.add('active');
       } else if (mode === 'upload' && value) {
         bgImg.style.display = 'block';
         bgImg.src = value;

@@ -2,7 +2,7 @@ const { app, BrowserWindow, session, ipcMain, shell } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const path = require('path');
 const fs = require('fs');
-const { loadAdBlocker } = require('./adblocker');
+const { loadAdBlocker, setAdBlockerEnabled } = require('./adblocker');
 
 let win;
 
@@ -143,6 +143,13 @@ async function createWindow() {
 
   const ses = session.fromPartition('persist:main');
   await loadAdBlocker(ses);
+
+  // Respect whatever the user last chose for the Ads toggle (defaults to on).
+  const savedSettings = readJSON(SETTINGS_FILE, {});
+  if (savedSettings.adblockEnabled === false) {
+    setAdBlockerEnabled(false);
+  }
+
   setupDownloadHandler(ses);
   setupPermissionHandler(ses);
 }
@@ -278,13 +285,21 @@ ipcMain.handle('settings:get', () => {
     homepage: 'https://google.com',
     searchEngine: 'google',
     theme: 'dark',
-    showBookmarkBar: true
+    showBookmarkBar: true,
+    adblockEnabled: true,
+    privateModeEnabled: false
   });
 });
 
 ipcMain.handle('settings:save', (event, settings) => {
   console.log('📨 IPC: settings:save called with', settings);
   return writeJSON(SETTINGS_FILE, settings);
+});
+
+// ── Ad blocker toggle ────────────────────────────────────────
+ipcMain.handle('adblock:setEnabled', (event, enabled) => {
+  setAdBlockerEnabled(!!enabled);
+  return true;
 });
 
 // ── Download handlers ──────────────────────────────────────

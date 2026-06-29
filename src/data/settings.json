@@ -4,5 +4,7 @@
   "theme": "black",
   "showBookmarkBar": true,
   "tabLayout": "horizontal",
-  "railCollapsed": true
+  "railCollapsed": true,
+  "privateModeEnabled": true,
+  "adblockEnabled": true
 }

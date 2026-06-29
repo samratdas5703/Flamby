@@ -15,6 +15,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getSettings:  ()       => ipcRenderer.invoke('settings:get'),
   saveSettings: (settings) => ipcRenderer.invoke('settings:save', settings),
 
+  // ── Ad blocker ─────────────────────────────────────────
+  setAdblockEnabled: (enabled) => ipcRenderer.invoke('adblock:setEnabled', enabled),
+
   // ── Downloads ──────────────────────────────────────────
   getDownloads:     ()         => ipcRenderer.invoke('downloads:get'),
   openDownload:     (savePath) => ipcRenderer.invoke('downloads:openFile', savePath),
