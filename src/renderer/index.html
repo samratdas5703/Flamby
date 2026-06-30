@@ -863,40 +863,39 @@ function createWebview(tab) {
   wv.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;border:none;display:none';
   wv.setAttribute('partition', tab.private ? 'private-' + tab.id : 'persist:main');
 
-  // ── Listen for page-message from the webview ──
-  wv.addEventListener('page-message', (event) => {
-    const data = event.message;
-    if (data && data.type === 'OPEN_SHORTCUT_POPUP') {
-      // Use the active webview (this wv is already the sender)
-      openShortcutPopup(data.url, data.defaultName, wv);
+  // ── Listen for the guest page asking us to open the shortcut popup ──
+  // Note: this is Electron's real <webview> event, fired when the guest
+  // calls ipcRenderer.sendToHost() from webview-preload.js. ('page-message'
+  // is not an Electron webview event and never fires — that was the bug.)
+  wv.addEventListener('ipc-message', (event) => {
+    if (event.channel === 'open-shortcut-popup') {
+      const [url, defaultName] = event.args;
+      openShortcutPopup(url, defaultName, wv);
     }
   });
 
   // ── Inject override on dom-ready ──
   wv.addEventListener('dom-ready', () => {
     wv.executeJavaScript(`
-      console.log('✅ Override injected: addShortcut and prompt');
-      window.addShortcut = function() {
-        console.log('addShortcut called');
-        const url = window.location.href;
-        const defaultName = document.title || url;
-        window.postMessage({ 
-          type: 'OPEN_SHORTCUT_POPUP', 
-          url: url, 
-          defaultName: defaultName 
-        }, '*');
-      };
-      window.prompt = function(message, defaultValue) {
-        console.log('prompt called, redirected to parent');
-        const url = window.location.href;
-        const defaultName = document.title || url;
-        window.postMessage({ 
-          type: 'OPEN_SHORTCUT_POPUP', 
-          url: url, 
-          defaultName: defaultName 
-        }, '*');
-        return defaultValue;
-      };
+      (function() {
+        // Keep a reference to the page's own addShortcut (newtab.html
+        // defines one) so the popup's Save button can call straight back
+        // into it with the name/url already filled in, skipping prompt().
+        if (typeof window.addShortcut === 'function' && !window._originalAddShortcut) {
+          window._originalAddShortcut = window.addShortcut;
+        }
+        window.addShortcut = function() {
+          const url = window.location.href;
+          const defaultName = document.title || url;
+          if (typeof window.__flambySendToHost === 'function') {
+            window.__flambySendToHost('open-shortcut-popup', url, defaultName);
+          } else if (typeof window._originalAddShortcut === 'function') {
+            // Preload bridge unavailable for some reason — fall back rather
+            // than silently doing nothing.
+            window._originalAddShortcut();
+          }
+        };
+      })();
     `);
   });
 

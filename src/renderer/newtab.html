@@ -490,11 +490,16 @@
       `;
     }
 
-    function addShortcut() {
-      const name = prompt('Shortcut name:');
-      if (!name) return;
-      let url = prompt('URL:');
-      if (!url) return;
+    function addShortcut(name, url) {
+      if (name === undefined && url === undefined) {
+        // No args — called directly (e.g. preload bridge wasn't available).
+        // Fall back to the old native-prompt flow.
+        name = prompt('Shortcut name:');
+        if (!name) return;
+        url = prompt('URL:');
+        if (!url) return;
+      }
+      if (!name || !url) return;
       if (!url.startsWith('http://') && !url.startsWith('https://')) {
         url = 'https://' + url;
       }

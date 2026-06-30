@@ -122,6 +122,16 @@ async function createWindow() {
   win.maximize();
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
 
+  // Every <webview> guest page (browsed sites + our own newtab.html) needs
+  // webview-preload.js attached so it can talk back to the host (camera
+  // preference lookup, and bridging the "Add Shortcut" popup). Without this,
+  // the preload file just sits there unused and ipcRenderer.sendToHost is
+  // unavailable inside the guest, so nothing it tries to send ever arrives.
+  win.webContents.on('will-attach-webview', (event, webPreferences) => {
+    webPreferences.preload = path.join(__dirname, 'webview-preload.js');
+    webPreferences.contextIsolation = false;
+  });
+
   // Once the main window is ready, wait for splash animation then switch
   win.once('ready-to-show', () => {
     setTimeout(() => {

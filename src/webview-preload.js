@@ -12,6 +12,19 @@
 try {
   const { ipcRenderer } = require('electron');
 
+  // Bridge used by index.html's injected "addShortcut" override (see
+  // createWebview in renderer/index.html) so a guest page — most often our
+  // own newtab.html — can ask the host to open the styled Add Shortcut
+  // popup. contextIsolation is off for webviews (see will-attach-webview in
+  // main.js), so this plain assignment is visible to the guest page itself.
+  window.__flambySendToHost = (channel, ...args) => {
+    try {
+      ipcRenderer.sendToHost(channel, ...args);
+    } catch (e) {
+      // Guest page running somewhere ipcRenderer isn't reachable — ignore.
+    }
+  };
+
   if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
     const originalGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
 
