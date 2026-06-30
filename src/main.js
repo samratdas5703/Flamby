@@ -324,7 +324,8 @@ ipcMain.handle('settings:get', () => {
     theme: 'dark',
     showBookmarkBar: true,
     adblockEnabled: true,
-    privateModeEnabled: false
+    privateModeEnabled: false,
+    windowControlStyle: 'dots'
   });
 });
 

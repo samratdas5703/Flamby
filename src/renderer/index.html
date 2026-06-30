@@ -301,7 +301,7 @@
     <div class="tab-bar">
       <div class="tabs" id="tabList"></div>
       <button class="new-tab-btn" onclick="addTab()">+</button>
-      <div class="window-controls">
+      <div class="window-controls" id="windowControls" data-style="dots">
         <button class="win-btn minimize" onclick="window.electronAPI.minimize()"></button>
         <button class="win-btn maximize" onclick="window.electronAPI.maximize()"></button>
         <button class="win-btn close-btn" onclick="window.electronAPI.close()"></button>
@@ -542,6 +542,31 @@
                    onchange="toggleTabLayout()"/>
             <span class="slider"></span>
           </label>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h3>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="3" y1="8" x2="21" y2="8"/><circle cx="17" cy="6" r=".6" fill="currentColor" stroke="none"/><circle cx="14.5" cy="6" r=".6" fill="currentColor" stroke="none"/></svg>
+          Window Controls
+        </h3>
+        <div class="wc-style-options" id="wcStyleOptions">
+          <button class="wc-style-option" id="wc-opt-dots" onclick="setWindowControlStyle('dots')">
+            <div class="wc-preview" id="wc-preview-dots"></div>
+            <span>Dots</span>
+          </button>
+          <button class="wc-style-option" id="wc-opt-windows" onclick="setWindowControlStyle('windows')">
+            <div class="wc-preview" id="wc-preview-windows"></div>
+            <span>Windows</span>
+          </button>
+          <button class="wc-style-option" id="wc-opt-macos" onclick="setWindowControlStyle('macos')">
+            <div class="wc-preview" id="wc-preview-macos"></div>
+            <span>macOS</span>
+          </button>
+          <button class="wc-style-option" id="wc-opt-minimal" onclick="setWindowControlStyle('minimal')">
+            <div class="wc-preview" id="wc-preview-minimal"></div>
+            <span>Minimal</span>
+          </button>
         </div>
       </div>
 
@@ -1511,6 +1536,87 @@ async function setCustomTheme(hex) {
   await saveSettings();
 }
 
+// ── Window control button styles ───────────────────────────
+// Small inline SVG icon helpers shared between the live titlebar
+// and the settings preview swatches.
+function wcIconMin(stroke) {
+  stroke = stroke || 'currentColor';
+  return `<svg viewBox="0 0 10 10" width="10" height="10"><line x1="1.5" y1="5" x2="8.5" y2="5" stroke="${stroke}" stroke-width="1.2" stroke-linecap="round"/></svg>`;
+}
+function wcIconMax(stroke) {
+  stroke = stroke || 'currentColor';
+  return `<svg viewBox="0 0 10 10" width="9" height="9"><rect x="1.5" y="1.5" width="7" height="7" fill="none" stroke="${stroke}" stroke-width="1.1"/></svg>`;
+}
+function wcIconClose(stroke) {
+  stroke = stroke || 'currentColor';
+  return `<svg viewBox="0 0 10 10" width="10" height="10"><line x1="1.5" y1="1.5" x2="8.5" y2="8.5" stroke="${stroke}" stroke-width="1.2" stroke-linecap="round"/><line x1="8.5" y1="1.5" x2="1.5" y2="8.5" stroke="${stroke}" stroke-width="1.2" stroke-linecap="round"/></svg>`;
+}
+
+const WC_STYLE_LABELS = { dots: 'Dots', windows: 'Windows', macos: 'macOS', minimal: 'Minimal' };
+
+// Builds the markup for a given window-control style.
+// interactive=true wires up the real minimize/maximize/close handlers
+// (used for the live titlebar); interactive=false renders an inert
+// preview swatch (used inside Settings).
+function windowControlsMarkup(style, interactive) {
+  const min   = interactive ? `onclick="window.electronAPI.minimize()"` : '';
+  const max   = interactive ? `onclick="window.electronAPI.maximize()"` : '';
+  const close = interactive ? `onclick="window.electronAPI.close()"`    : '';
+
+  if (style === 'windows') {
+    return `
+      <button class="win-btn-sq wc-min" ${min} title="Minimize">${wcIconMin()}</button>
+      <button class="win-btn-sq wc-max" ${max} title="Maximize">${wcIconMax()}</button>
+      <button class="win-btn-sq wc-close" ${close} title="Close">${wcIconClose()}</button>`;
+  }
+  if (style === 'macos') {
+    return `
+      <button class="win-btn mac-btn mac-min" ${min} title="Minimize">${wcIconMin('rgba(0,0,0,0.6)')}</button>
+      <button class="win-btn mac-btn mac-max" ${max} title="Maximize">${wcIconMax('rgba(0,0,0,0.6)')}</button>
+      <button class="win-btn mac-btn mac-close" ${close} title="Close">${wcIconClose('rgba(0,0,0,0.6)')}</button>`;
+  }
+  if (style === 'minimal') {
+    return `
+      <button class="win-btn-flat" ${min} title="Minimize">${wcIconMin()}</button>
+      <button class="win-btn-flat" ${max} title="Maximize">${wcIconMax()}</button>
+      <button class="win-btn-flat wc-flat-close" ${close} title="Close">${wcIconClose()}</button>`;
+  }
+  // default: 'dots' — the original plain traffic-light style
+  return `
+    <button class="win-btn minimize" ${min}></button>
+    <button class="win-btn maximize" ${max}></button>
+    <button class="win-btn close-btn" ${close}></button>`;
+}
+
+// Renders the real titlebar buttons in the chosen style and marks the
+// matching option active in Settings.
+function applyWindowControlStyle(style) {
+  if (!WC_STYLE_LABELS[style]) style = 'dots';
+  const container = document.getElementById('windowControls');
+  if (container) {
+    container.dataset.style = style;
+    container.innerHTML = windowControlsMarkup(style, true);
+  }
+  document.querySelectorAll('.wc-style-option').forEach(b => b.classList.remove('active'));
+  const opt = document.getElementById('wc-opt-' + style);
+  if (opt) opt.classList.add('active');
+}
+
+async function setWindowControlStyle(style) {
+  applyWindowControlStyle(style);
+  currentSettings.windowControlStyle = style;
+  await saveSettings();
+}
+
+// Fills the 4 preview swatches in Settings with non-interactive copies
+// of each style so the user can see exactly what they'll get.
+function renderWindowControlPreviews() {
+  Object.keys(WC_STYLE_LABELS).forEach(style => {
+    const el = document.getElementById('wc-preview-' + style);
+    if (el) el.innerHTML = windowControlsMarkup(style, false);
+  });
+}
+
 // ── Set theme and save it ──────────────────────────────────
 async function setTheme(theme) {
   applyTheme(theme);
@@ -1634,6 +1740,9 @@ async function loadSettings() {
       applyTheme(saved.theme || 'dark');
     }
 
+    // Apply window control button style (defaults to the original "dots" look)
+    applyWindowControlStyle(saved.windowControlStyle || 'dots');
+
     // Apply vertical/horizontal tab layout
     applyTabLayout(saved.tabLayout || 'horizontal');
     if (saved.railCollapsed) {
@@ -1677,9 +1786,12 @@ async function loadSettings() {
   homepage: 'https://google.com',
   searchEngine: 'google',
   theme: 'dark',
-  showBookmarkBar: true
+  showBookmarkBar: true,
+  windowControlStyle: 'dots'
 };
+  applyWindowControlStyle('dots');
   }
+  renderWindowControlPreviews();
 }
 // ── Toast notification (replaces alert) ───────────────────
 function showToast(message) {

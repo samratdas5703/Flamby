@@ -135,6 +135,97 @@ html, body {
 .maximize  { background: #27c93f; }
 .close-btn { background: #ff5f57; }
 
+/* ── Windows-style square buttons ── */
+.win-btn-sq {
+  width: 30px;
+  height: 22px;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  color: rgba(255,255,255,0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.win-btn-sq:hover { background: rgba(255,255,255,0.16); }
+.win-btn-sq.wc-close:hover { background: #e81123; color: #ffffff; }
+
+/* ── macOS-style traffic lights with icons ── */
+.mac-btn {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+.mac-btn svg { opacity: 0; transition: opacity 0.1s; }
+.window-controls:hover .mac-btn svg { opacity: 1; }
+.mac-btn:hover { transform: scale(1.12); }
+.mac-min   { background: #f5a623; }
+.mac-max   { background: #27c93f; }
+.mac-close { background: #ff5f57; }
+
+/* ── Minimal flat icon buttons ── */
+.win-btn-flat {
+  width: 26px;
+  height: 22px;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  color: rgba(255,255,255,0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.win-btn-flat:hover { background: rgba(255,255,255,0.12); color: #ffffff; }
+.win-btn-flat.wc-flat-close:hover { background: rgba(255,95,87,0.25); color: #ff8a82; }
+
+/* ── Window Controls settings preview cards ── */
+.wc-style-options { display: flex; flex-wrap: wrap; gap: 10px; }
+.wc-style-option {
+  flex: 1 1 calc(50% - 10px);
+  min-width: 130px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 10px;
+  background: rgba(255,255,255,0.06);
+  backdrop-filter: blur(10px) saturate(180%);
+  -webkit-backdrop-filter: blur(10px) saturate(180%);
+  border: 0.5px solid rgba(255,255,255,0.14);
+  border-radius: 10px;
+  color: rgba(255,255,255,0.7);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.wc-style-option:hover { background: rgba(255,255,255,0.12); color: #ffffff; }
+.wc-style-option.active {
+  background: rgba(10,132,255,0.2);
+  border-color: rgba(10,132,255,0.55);
+  color: #5eb3ff;
+}
+.wc-preview {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 4px 10px;
+  background: rgba(0,0,0,0.25);
+  border-radius: 6px;
+  pointer-events: none;
+}
+.wc-preview .mac-btn svg { opacity: 1; } /* always show icons in the static preview */
+
 /* ── Toolbar ── */
 .toolbar {
   -webkit-app-region: no-drag;
