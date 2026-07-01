@@ -777,6 +777,7 @@
           <button class="theme-swatch"        data-theme="red"    onclick="setTheme('red')"    id="theme-red"    style="background:linear-gradient(135deg,#4a0e0e,#7a1f1f,#2e0707)" title="Red"></button>
           <button class="theme-swatch"        data-theme="green"  onclick="setTheme('green')"  id="theme-green"  style="background:linear-gradient(135deg,#0d2818,#1e4d33,#0a1f12)" title="Green"></button>
           <button class="theme-swatch"        data-theme="pink"   onclick="setTheme('pink')"   id="theme-pink"   style="background:linear-gradient(135deg,#d68fb0,#f0b8d0,#e89dc0)" title="Pink"></button>
+          <button class="theme-swatch theme-swatch-glass" data-theme="glass" onclick="setTheme('glass')" id="theme-glass" title="Glass"></button>
           <label class="theme-swatch theme-swatch-custom" title="Custom theme color">
             <input type="color" id="customThemeInput" oninput="setCustomTheme(this.value)"/>
           </label>
@@ -1752,6 +1753,7 @@ function applyTheme(theme) {
     red:    'linear-gradient(135deg, #4a0e0e, #7a1f1f, #2e0707)',
     green:  'linear-gradient(135deg, #0d2818, #1e4d33, #0a1f12)',
     pink:   'linear-gradient(135deg, #d68fb0, #f0b8d0, #e89dc0)',
+    glass:  'linear-gradient(135deg, #2b1055, #3d1466, #001e3c, #4d1d75)',
   };
 
   // Themes whose gradient is bright enough to need dark text instead of white
@@ -1759,8 +1761,14 @@ function applyTheme(theme) {
 
   const gradient = themes[theme] || themes.dark;
   document.body.setAttribute('data-theme', lightTextThemes.includes(theme) ? 'light' : 'dark');
-  document.body.style.background = gradient;
-  document.querySelector('.browser-shell').style.background = gradient;
+  document.body.style.background = theme === 'glass' ? 'transparent' : gradient;
+  document.querySelector('.browser-shell').style.background = theme === 'glass' ? 'transparent' : gradient;
+  document.documentElement.style.background = theme === 'glass' ? 'transparent' : '';
+
+  // Glass theme: extra-transparent, extra-blurred frosted panels
+  document.documentElement.classList.toggle('theme-glass', theme === 'glass');
+  document.body.classList.toggle('theme-glass', theme === 'glass');
+  document.querySelector('.browser-shell').classList.toggle('theme-glass', theme === 'glass');
 
   // Update active swatch
   document.querySelectorAll('.theme-swatch').forEach(b => b.classList.remove('active'));
@@ -1774,6 +1782,10 @@ function applyCustomTheme(hex) {
   document.body.setAttribute('data-theme', isLightHex(hex) ? 'light' : 'dark');
   document.body.style.background = gradient;
   document.querySelector('.browser-shell').style.background = gradient;
+  document.documentElement.style.background = '';
+  document.documentElement.classList.remove('theme-glass');
+  document.body.classList.remove('theme-glass');
+  document.querySelector('.browser-shell').classList.remove('theme-glass');
   document.querySelectorAll('.theme-swatch').forEach(b => b.classList.remove('active'));
   const custom = document.querySelector('.theme-swatch-custom');
   if (custom) {
@@ -1790,8 +1802,10 @@ function isLightHex(hex) {
 }
 
 async function setCustomTheme(hex) {
+  const wasGlass = currentSettings.theme === 'glass';
   applyCustomTheme(hex);
   currentSettings.theme = 'custom';
+  if (wasGlass) showRestartPrompt('Restart Flamby to turn off the see-through window');
   currentSettings.customThemeColor = hex;
   await saveSettings();
 }
@@ -1879,9 +1893,57 @@ function renderWindowControlPreviews() {
 
 // ── Set theme and save it ──────────────────────────────────
 async function setTheme(theme) {
+  const previousTheme = currentSettings.theme;
   applyTheme(theme);
   currentSettings.theme = theme;
   await saveSettings();
+
+  // The Glass theme's real see-through window can only be turned on/off
+  // when the window is created, so switching into or out of it needs a
+  // restart to actually take effect (the CSS/blur styling above already
+  // applies instantly either way).
+  const enteringGlass = theme === 'glass' && previousTheme !== 'glass';
+  const leavingGlass = theme !== 'glass' && previousTheme === 'glass';
+  if (enteringGlass || leavingGlass) {
+    showRestartPrompt(enteringGlass
+      ? 'Glass theme applied. Restart Flamby once to turn on the real see-through window (a one-time Electron limitation).'
+      : 'Restart Flamby to switch the window back to normal (opaque).');
+  }
+}
+
+// ── Restart prompt (for settings that need a fresh window) ─
+function showRestartPrompt(message) {
+  const existing = document.getElementById('restartPrompt');
+  if (existing) existing.remove();
+
+  const bar = document.createElement('div');
+  bar.id = 'restartPrompt';
+  bar.style.cssText = `
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    background: rgba(30,30,50,0.95);
+    color: white;
+    padding: 12px 14px 12px 20px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 500;
+    border: 1px solid rgba(255,255,255,0.1);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    z-index: 999999;
+  `;
+  bar.innerHTML = `
+    <span>${message}</span>
+    <button id="restartPromptBtn" style="background:rgba(255,255,255,0.16);color:#fff;border:none;border-radius:7px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;">Restart Now</button>
+    <button id="restartPromptDismiss" style="background:transparent;color:rgba(255,255,255,0.6);border:none;font-size:16px;line-height:1;cursor:pointer;padding:0 2px;">×</button>
+  `;
+  document.body.appendChild(bar);
+  document.getElementById('restartPromptBtn').onclick = () => window.electronAPI.relaunchApp();
+  document.getElementById('restartPromptDismiss').onclick = () => bar.remove();
 }
 
 // ── Ad blocker toggle (green accent) ───────────────────────
@@ -2480,7 +2542,7 @@ function showToast(message) {
     const ONBOARDING_STEPS = [
       // Step 0 — Welcome
       {
-        title: 'Welcome to Flamby 🔥',
+        title: 'Welcome to Flamby',
         body: [
           'A fast, privacy-focused browser built around vertical tabs, split view, and a look that\'s entirely yours.',
           'Let\'s get you set up — it only takes a moment.'
@@ -2526,7 +2588,7 @@ function showToast(message) {
         body: ['Pick a color theme to start with — fine-tune it anytime from Settings, including a fully custom color.'],
         primary: 'Next',
         render(right) {
-          const themes = ['dark','light','purple','ocean','brown','gray','white','black','red','green','pink'];
+          const themes = ['dark','light','purple','ocean','brown','gray','white','black','red','green','pink','glass'];
           const gradients = {
             dark:'linear-gradient(135deg,#2b1055,#4d1d75,#1a3a6b)', light:'linear-gradient(135deg,#a8c8ff,#c9b6f5,#f5c6e0)',
             purple:'linear-gradient(135deg,#1a0a2e,#3d1466,#1a0a2e)', ocean:'linear-gradient(135deg,#001e3c,#003e5c,#001e3c)',
@@ -2539,8 +2601,8 @@ function showToast(message) {
           const grid = right.querySelector('#onbThemeGrid');
           themes.forEach(t => {
             const btn = document.createElement('button');
-            btn.className = 'theme-swatch' + (currentSettings.theme === t ? ' active' : '');
-            btn.style.background = gradients[t];
+            btn.className = 'theme-swatch' + (t === 'glass' ? ' theme-swatch-glass' : '') + (currentSettings.theme === t ? ' active' : '');
+            if (t !== 'glass') btn.style.background = gradients[t];
             btn.title = t.charAt(0).toUpperCase() + t.slice(1);
             btn.onclick = () => {
               setTheme(t);

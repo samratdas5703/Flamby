@@ -864,6 +864,60 @@ input:checked + .slider:before { transform: translateX(20px); }
   transition: all 0.2s;
 }
 .bm-list-item button:hover { color: #ff5f57; }
+/* ── Glass swatch shine (thumbnail button in Settings) ── */
+.theme-swatch-glass {
+  position: relative;
+  background: linear-gradient(135deg, rgba(255,255,255,0.55), rgba(150,190,255,0.35) 45%, rgba(255,255,255,0.12));
+  border: 1px solid rgba(255,255,255,0.5) !important;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+.theme-swatch-glass::before {
+  content: '';
+  position: absolute;
+  top: 4px; left: 6px; right: 6px; height: 30%;
+  background: linear-gradient(180deg, rgba(255,255,255,0.7), rgba(255,255,255,0));
+  border-radius: 999px;
+  pointer-events: none;
+}
+
+/* ── Glass theme overrides: extra-transparent frosted panels ── */
+.theme-glass .tab-bar,
+.theme-glass .toolbar,
+.theme-glass .bookmark-bar,
+.theme-glass .tab-rail {
+  background: rgba(255,255,255,0.10) !important;
+  backdrop-filter: blur(34px) saturate(200%) !important;
+  -webkit-backdrop-filter: blur(34px) saturate(200%) !important;
+  border-color: rgba(255,255,255,0.28) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.32);
+}
+.theme-glass .tab,
+.theme-glass .address-wrapper,
+.theme-glass .nav-btn,
+.theme-glass .new-tab-btn,
+.theme-glass .bookmark-item,
+.theme-glass .tab-vertical {
+  background: rgba(255,255,255,0.12) !important;
+  border-color: rgba(255,255,255,0.24) !important;
+  backdrop-filter: blur(18px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(180%) !important;
+}
+.theme-glass .tab.active,
+.theme-glass .tab-vertical.active {
+  background: rgba(255,255,255,0.24) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.4);
+}
+html.theme-glass,
+body.theme-glass {
+  background: transparent !important;
+}
+html.theme-glass .browser-shell,
+body.theme-glass .browser-shell {
+  background: transparent !important;
+}
+.theme-glass .address-bar::placeholder { color: rgba(255,255,255,0.55); }
+
 /* ── Light theme overrides ── */
 [data-theme="light"] {
   color: #1a1a2e;

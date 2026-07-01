@@ -102,14 +102,23 @@ function writeJSON(filePath, data) {
 
 // ── Create window ──────────────────────────────────────────
 async function createWindow() {
-  win = new BrowserWindow({
+  // The "glass" theme needs the OS compositor to actually see through the
+  // window, which Electron only supports by setting `transparent` (and
+  // vibrancy/backgroundMaterial) at BrowserWindow construction time — it
+  // can't be toggled on a live window. So we check the saved theme up
+  // front and build the window accordingly; switching the setting later
+  // takes effect after a restart (the renderer prompts for that).
+  const glassSettings = readJSON(SETTINGS_FILE, {});
+  const wantsGlass = glassSettings.theme === 'glass';
+
+  const winOptions = {
     width: 1400,
     height: 900,
     minWidth: 800,
     minHeight: 600,
     frame: false,
-    transparent: false,
-    backgroundColor: '#0f0f1a',
+    transparent: wantsGlass,
+    backgroundColor: wantsGlass ? '#00000000' : '#0f0f1a',
     show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -118,7 +127,19 @@ async function createWindow() {
       webviewTag: true,
       partition: 'persist:main'
     }
-  });
+  };
+
+  if (wantsGlass) {
+    if (process.platform === 'darwin') {
+      winOptions.vibrancy = 'under-window';
+      winOptions.visualEffectState = 'active';
+    } else if (process.platform === 'win32') {
+      // Windows 11 acrylic material; harmlessly ignored on older Windows.
+      winOptions.backgroundMaterial = 'acrylic';
+    }
+  }
+
+  win = new BrowserWindow(winOptions);
 
   win.maximize();
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
@@ -332,6 +353,10 @@ ipcMain.on('minimize', () => win.minimize());
 ipcMain.on('maximize', () => win.isMaximized() ? win.unmaximize() : win.maximize());
 ipcMain.on('close',    () => win.close());
 ipcMain.on('toggle-fullscreen', () => win.setFullScreen(!win.isFullScreen()));
+ipcMain.handle('app:relaunch', () => {
+  app.relaunch();
+  app.exit(0);
+});
 
 // ── Docked DevTools (F12) ──────────────────────────────────
 // Opens the DevTools for a specific webContents (identified by its ID)

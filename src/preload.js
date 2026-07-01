@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   minimize: () => ipcRenderer.send('minimize'),
   maximize: () => ipcRenderer.send('maximize'),
   close:    () => ipcRenderer.send('close'),
+  relaunchApp: () => ipcRenderer.invoke('app:relaunch'),
 
   // ── Bookmarks ──────────────────────────────────────────
   getBookmarks:  ()            => ipcRenderer.invoke('bookmarks:get'),
