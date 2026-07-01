@@ -407,6 +407,19 @@
     <!-- Webview Container -->
     <div class="webview-container" id="webviewContainer"></div>
 
+    <!-- DevTools active indicator (F12) — the real DevTools window is
+         repositioned by main.js to sit flush below this bar -->
+    <div class="devtools-bar" id="devtoolsBar">
+      <span class="devtools-bar-label">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+        DevTools
+      </span>
+      <div style="display:flex;align-items:center;gap:4px;">
+        <span style="font-size:10px;opacity:0.4">F12 to close</span>
+        <button class="devtools-bar-close" onclick="closeDevtoolsPane()" title="Close">✕</button>
+      </div>
+    </div>
+
       </div> <!-- /.browser-main -->
     </div> <!-- /.browser-body -->
 
@@ -2040,6 +2053,55 @@ function showToast(message) {
       // Quietly drop it — most "errors" here are just "no update found" /
       // network blips, and we don't want to nag the user with a popup for that.
       console.warn('Update check issue:', err && err.message);
+    });
+
+    // ═══════════════════════════════════════════════════════
+    // FULLSCREEN  (F11)
+    // ═══════════════════════════════════════════════════════
+    const tabBar  = document.querySelector('.tab-bar');
+    const toolbar = document.querySelector('.toolbar');
+
+    window.electronAPI.onFullscreenChange((isFullscreen) => {
+      document.body.classList.toggle('is-fullscreen', isFullscreen);
+      [tabBar, toolbar].forEach(el => { if (el) el.classList.toggle('fs-hidden', isFullscreen); });
+    });
+
+    // Move mouse to very top to reveal tab bar + toolbar while in fullscreen
+    document.addEventListener('mousemove', (e) => {
+      if (!document.body.classList.contains('is-fullscreen')) return;
+      const show = e.clientY <= 3;
+      const hide = e.clientY > 90;
+      if (show)      [tabBar, toolbar].forEach(el => el && el.classList.remove('fs-hidden'));
+      else if (hide) [tabBar, toolbar].forEach(el => el && el.classList.add('fs-hidden'));
+    });
+
+    // ═══════════════════════════════════════════════════════
+    // DEVTOOLS  (F12 — OS window repositioned to bottom)
+    // ═══════════════════════════════════════════════════════
+    let devtoolsOpen = false;
+    const devtoolsBar = document.getElementById('devtoolsBar');
+
+    function openDevtoolsPane() {
+      const wv = getActiveWebview();
+      if (!wv) return;
+      window.electronAPI.openDockedDevTools(wv.getWebContentsId());
+      if (devtoolsBar) devtoolsBar.classList.add('visible');
+      devtoolsOpen = true;
+    }
+
+    function closeDevtoolsPane() {
+      window.electronAPI.closeDockedDevTools();
+      if (devtoolsBar) devtoolsBar.classList.remove('visible');
+      devtoolsOpen = false;
+    }
+
+    window.electronAPI.onDevToolsToggle(() => {
+      devtoolsOpen ? closeDevtoolsPane() : openDevtoolsPane();
+    });
+
+    window.electronAPI.onDevToolsClosed(() => {
+      if (devtoolsBar) devtoolsBar.classList.remove('visible');
+      devtoolsOpen = false;
     });
 
     // ═══════════════════════════════════════════════════════

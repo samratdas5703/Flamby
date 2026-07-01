@@ -33,7 +33,69 @@ html, body {
   padding: 0 10px;
   gap: 6px;
   border-bottom: 1px solid rgba(255,255,255,0.14);
+  transition: transform 0.25s ease, opacity 0.25s ease;
 }
+
+/* Fullscreen: collapse tab-bar AND toolbar out of flex flow */
+.tab-bar.fs-hidden,
+.toolbar.fs-hidden {
+  height: 0 !important;
+  min-height: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  border: none !important;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transition: height 0.2s ease, opacity 0.2s ease;
+}
+
+/* Fullscreen reveal strip — hover zone at very top */
+body.is-fullscreen::before {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 4px;
+  z-index: 9999;
+}
+
+/* ── DevTools indicator bar (shown when F12 is active) ── */
+.devtools-bar {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  height: 26px;
+  min-height: 26px;
+  padding: 0 10px;
+  background: #1e1e2e;
+  border-top: 1px solid rgba(255,255,255,0.12);
+  font-size: 11px;
+  color: rgba(255,255,255,0.5);
+  flex-shrink: 0;
+  -webkit-app-region: no-drag;
+}
+.devtools-bar.visible { display: flex; }
+.devtools-bar-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-size: 10px;
+  color: rgba(255,255,255,0.45);
+}
+.devtools-bar-close {
+  background: transparent;
+  border: none;
+  color: rgba(255,255,255,0.4);
+  cursor: pointer;
+  padding: 2px 6px;
+  font-size: 12px;
+  border-radius: 4px;
+  transition: background 0.15s, color 0.15s;
+}
+.devtools-bar-close:hover { background: rgba(255,80,80,0.2); color: #ff8080; }
 
 .tabs {
   display: flex;

@@ -143,22 +143,45 @@ async function createWindow() {
   });
 
   win.webContents.on('before-input-event', (event, input) => {
-    if (input.type === 'keyDown' && input.key === 'F11') {
+    if (input.type !== 'keyDown') return;
+
+    // F11 – toggle fullscreen
+    if (input.key === 'F11') {
       win.setFullScreen(!win.isFullScreen());
       event.preventDefault();
     }
+
+    // F12 – toggle DevTools for the active webview via the renderer,
+    // or fall back to the host window's own DevTools.
+    if (input.key === 'F12') {
+      win.webContents.send('devtools:toggle');
+      event.preventDefault();
+    }
+  });
+
+  // Tell the renderer when fullscreen state changes so it can hide/show
+  // the titlebar and update any fullscreen-indicator UI.
+  win.on('enter-full-screen', () => {
+    if (!win.isDestroyed()) win.webContents.send('fullscreen:change', true);
+  });
+  win.on('leave-full-screen', () => {
+    if (!win.isDestroyed()) win.webContents.send('fullscreen:change', false);
   });
 
   // Webview guest pages get their own WebContents — catch F11 there too,
   // and raise their listener cap since the adblocker library attaches one
   // tracking-detection listener per guest webContents (expected, not a leak).
   win.webContents.on('did-attach-webview', (event, contents) => {
-    contents.setMaxListeners(0); // 0 = unlimited; the ad-blocker library attaches
-    // one listener per webview by design, so a fixed cap will always eventually
-    // be exceeded the more tabs someone opens in a session — this isn't a real leak.
+    contents.setMaxListeners(0);
     contents.on('before-input-event', (e, input) => {
-      if (input.type === 'keyDown' && input.key === 'F11') {
+      if (input.type !== 'keyDown') return;
+      if (input.key === 'F11') {
         win.setFullScreen(!win.isFullScreen());
+        e.preventDefault();
+      }
+      if (input.key === 'F12') {
+        // Route through the renderer so the docked pane logic handles it
+        win.webContents.send('devtools:toggle');
         e.preventDefault();
       }
     });
@@ -303,6 +326,77 @@ ipcMain.on('minimize', () => win.minimize());
 ipcMain.on('maximize', () => win.isMaximized() ? win.unmaximize() : win.maximize());
 ipcMain.on('close',    () => win.close());
 ipcMain.on('toggle-fullscreen', () => win.setFullScreen(!win.isFullScreen()));
+
+// ── Docked DevTools (F12) ──────────────────────────────────
+// Opens the DevTools for a specific webContents (identified by its ID)
+// as a detached window, then immediately repositions and resizes it so
+// it sits flush at the bottom half of the main browser window —
+// giving the appearance of a docked panel without needing BrowserView.
+let devToolsWindow = null;
+
+ipcMain.on('devtools:open', (event, webContentsId) => {
+  try {
+    const { webContents } = require('electron');
+    const targetContents = webContents.fromId(webContentsId);
+    if (!targetContents || targetContents.isDestroyed()) return;
+
+    if (devToolsWindow && !devToolsWindow.isDestroyed()) {
+      devToolsWindow.close();
+      devToolsWindow = null;
+    }
+
+    // Capture the list of windows before opening so we can find the new one
+    const { BrowserWindow: BW } = require('electron');
+    const before = new Set(BW.getAllWindows().map(w => w.id));
+
+    targetContents.openDevTools({ mode: 'detach' });
+
+    // After a short delay the DevTools window will exist — grab it,
+    // resize + reposition it to look like a docked bottom panel.
+    setTimeout(() => {
+      const newWins = BW.getAllWindows().filter(w => !before.has(w.id));
+      if (newWins.length === 0) return;
+      devToolsWindow = newWins[0];
+
+      const mb = win.getBounds();
+      const paneH = Math.floor(mb.height * 0.45);
+      devToolsWindow.setBounds({
+        x: mb.x,
+        y: mb.y + mb.height - paneH,
+        width: mb.width,
+        height: paneH
+      });
+      devToolsWindow.setAlwaysOnTop(false);
+
+      // Keep it in sync if the main window moves/resizes
+      const reposition = () => {
+        if (!devToolsWindow || devToolsWindow.isDestroyed()) return;
+        const b = win.getBounds();
+        const h = devToolsWindow.getSize()[1];
+        devToolsWindow.setBounds({ x: b.x, y: b.y + b.height - h, width: b.width, height: h });
+      };
+      win.on('move', reposition);
+      win.on('resize', reposition);
+
+      devToolsWindow.on('closed', () => {
+        devToolsWindow = null;
+        win.removeListener('move', reposition);
+        win.removeListener('resize', reposition);
+        // Tell renderer to reset its open state
+        if (!win.isDestroyed()) win.webContents.send('devtools:closed');
+      });
+    }, 400);
+  } catch (err) {
+    console.error('DevTools open error:', err.message);
+  }
+});
+
+ipcMain.on('devtools:close', () => {
+  if (devToolsWindow && !devToolsWindow.isDestroyed()) {
+    devToolsWindow.close();
+    devToolsWindow = null;
+  }
+});
 
 // ── Bookmark handlers ──────────────────────────────────────
 ipcMain.handle('bookmarks:get', () => {

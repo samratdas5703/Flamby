@@ -28,6 +28,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('downloads:update', (event, downloads) => callback(downloads));
   },
 
+  // ── DevTools & Fullscreen ──────────────────────────────────
+  openDockedDevTools: (webContentsId) => ipcRenderer.send('devtools:open', webContentsId),
+  closeDockedDevTools: () => ipcRenderer.send('devtools:close'),
+  onDevToolsToggle: (callback) => {
+    ipcRenderer.on('devtools:toggle', () => callback());
+  },
+  onDevToolsClosed: (callback) => {
+    ipcRenderer.on('devtools:closed', () => callback());
+  },
+  onFullscreenChange: (callback) => {
+    ipcRenderer.on('fullscreen:change', (event, isFullscreen) => callback(isFullscreen));
+  },
+
   // ── Auto-update ──────────────────────────────────────────
   downloadUpdate:  () => ipcRenderer.invoke('update:download'),
   installUpdate:   () => ipcRenderer.invoke('update:install'),

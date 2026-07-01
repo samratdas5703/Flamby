@@ -6,6 +6,5 @@
   "tabLayout": "horizontal",
   "railCollapsed": true,
   "privateModeEnabled": true,
-  "adblockEnabled": true,
-  "windowControlStyle": "dots"
+  "adblockEnabled": true
 }
