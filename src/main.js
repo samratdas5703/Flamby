@@ -32,12 +32,40 @@ autoUpdater.autoDownload = false;
 autoUpdater.autoInstallOnAppQuit = false;
 
 // ── File paths ─────────────────────────────────────────────
-const DATA_DIR        = path.join(__dirname, 'data');
+// IMPORTANT: this must live in Electron's per-user "userData" directory
+// (e.g. %APPDATA%\Flamby on Windows, ~/.config/Flamby on Linux), NOT
+// inside the app's own install folder (__dirname). The install folder
+// gets overwritten by every auto-update, which used to wipe bookmarks,
+// settings, downloads, permissions, and login sessions along with it.
+const DATA_DIR        = path.join(app.getPath('userData'), 'data');
 const BOOKMARKS_FILE   = path.join(DATA_DIR, 'bookmarks.json');
 const SETTINGS_FILE    = path.join(DATA_DIR, 'settings.json');
 const DOWNLOADS_FILE   = path.join(DATA_DIR, 'downloads.json');
 const PERMISSIONS_FILE = path.join(DATA_DIR, 'permissions.json');
 const ONBOARDING_FILE  = path.join(DATA_DIR, 'onboarding.json');
+
+// One-time migration: older versions stored data next to the app itself
+// (inside __dirname), which got destroyed on every update. If that old
+// location still has data and the new location doesn't yet, copy it
+// over so people don't lose everything on the update that ships this fix.
+const OLD_DATA_DIR = path.join(__dirname, 'data');
+function migrateOldDataIfNeeded() {
+  try {
+    if (!fs.existsSync(OLD_DATA_DIR) || OLD_DATA_DIR === DATA_DIR) return;
+    if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+    for (const name of ['bookmarks.json', 'settings.json', 'downloads.json', 'permissions.json', 'onboarding.json']) {
+      const oldFile = path.join(OLD_DATA_DIR, name);
+      const newFile = path.join(DATA_DIR, name);
+      if (fs.existsSync(oldFile) && !fs.existsSync(newFile)) {
+        fs.copyFileSync(oldFile, newFile);
+        console.log('🔁 Migrated', name, 'to userData directory');
+      }
+    }
+  } catch (e) {
+    console.error('❌ Data migration failed:', e.message);
+  }
+}
+migrateOldDataIfNeeded();
 
 // ── Downloads state ─────────────────────────────────────────
 let downloads = []; // [{ id, filename, url, savePath, state, receivedBytes, totalBytes, startTime }]
