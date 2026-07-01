@@ -41,6 +41,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('fullscreen:change', (event, isFullscreen) => callback(isFullscreen));
   },
 
+  // ── Picture in Picture ─────────────────────────────────────
+  onPiPToggle: (callback) => {
+    ipcRenderer.on('pip:toggle', () => callback());
+  },
+
   // ── Auto-update ──────────────────────────────────────────
   downloadUpdate:  () => ipcRenderer.invoke('update:download'),
   installUpdate:   () => ipcRenderer.invoke('update:install'),

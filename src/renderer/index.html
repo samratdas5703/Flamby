@@ -935,6 +935,13 @@ function createWebview(tab) {
         };
       })();
     `);
+    // Auto-attach a right-click "Picture in Picture" menu item on any
+    // <video> on the page. The click happens inside the guest page
+    // itself, so it's a real user gesture and requestPictureInPicture()
+    // never fails with the "Must be handling a user gesture" error —
+    // unlike driving PiP from the host via executeJavaScript, which
+    // Chromium doesn't always count as one.
+    wv.executeJavaScript(FLAMBY_PIP_INJECT_SCRIPT).catch(() => {});
   });
 
   // ── Navigation events ──
@@ -1695,6 +1702,124 @@ async function togglePrivateMode() {
   showToast(on ? 'New tabs will open as Private' : 'New tabs will be regular tabs');
 }
 
+// ── Picture in Picture ────────────────────────────────────
+// Instead of driving requestPictureInPicture() from the host process
+// (which only works the first time, because Chromium requires an actual
+// user gesture *inside the guest page* and executeJavaScript from the
+// host doesn't reliably carry one across calls), we inject a script into
+// every page that intercepts right-clicks on <video> elements — even
+// under sites' own custom context menus (e.g. YouTube's) — and shows a
+// small "Picture in Picture" menu item instead. Clicking it fires
+// requestPictureInPicture() from inside the page itself, so it's always
+// a genuine user gesture and works every time, on any site.
+const FLAMBY_PIP_INJECT_SCRIPT = `
+(function () {
+  if (window.__flambyPipInstalled) return;
+  window.__flambyPipInstalled = true;
+  if (!document.pictureInPictureEnabled) return;
+
+  let menu = null;
+  function closeMenu() {
+    if (menu) { menu.remove(); menu = null; }
+  }
+
+  function showMenu(video, x, y) {
+    closeMenu();
+    menu = document.createElement('div');
+    menu.style.cssText = [
+      'position:fixed', 'top:' + y + 'px', 'left:' + x + 'px',
+      'background:#282828', 'color:#fff', 'font-family:Roboto,Arial,sans-serif',
+      'font-size:13px', 'border-radius:8px', 'padding:6px 0',
+      'box-shadow:0 4px 16px rgba(0,0,0,0.5)', 'z-index:2147483647',
+      'min-width:180px', 'user-select:none'
+    ].join(';');
+
+    const item = document.createElement('div');
+    const isPip = document.pictureInPictureElement === video;
+    item.textContent = isPip ? 'Exit Picture in Picture' : 'Picture in Picture';
+    item.style.cssText = 'padding:9px 16px;cursor:pointer;display:flex;align-items:center;gap:10px;';
+    item.onmouseenter = () => item.style.background = 'rgba(255,255,255,0.1)';
+    item.onmouseleave = () => item.style.background = 'transparent';
+    item.onclick = async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      closeMenu();
+      try {
+        if (document.pictureInPictureElement === video) {
+          await document.exitPictureInPicture();
+        } else {
+          await video.requestPictureInPicture();
+        }
+      } catch (err) { /* ignore */ }
+    };
+    menu.appendChild(item);
+    document.body.appendChild(menu);
+
+    // Keep menu on-screen
+    const r = menu.getBoundingClientRect();
+    if (r.right > window.innerWidth) menu.style.left = (window.innerWidth - r.width - 4) + 'px';
+    if (r.bottom > window.innerHeight) menu.style.top = (window.innerHeight - r.height - 4) + 'px';
+  }
+
+  function findVideoAt(x, y) {
+    return Array.from(document.querySelectorAll('video')).find(v => {
+      if (v.disablePictureInPicture) return false;
+      const r = v.getBoundingClientRect();
+      return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom &&
+             r.width > 0 && r.height > 0;
+    });
+  }
+
+  document.addEventListener('contextmenu', (e) => {
+    const video = findVideoAt(e.clientX, e.clientY);
+    if (!video) return;
+    // Intercept before the page's own context menu (e.g. YouTube's custom
+    // right-click menu) can render, so ours shows instead.
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    showMenu(video, e.clientX, e.clientY);
+  }, true);
+
+  document.addEventListener('click', (e) => {
+    if (menu && !menu.contains(e.target)) closeMenu();
+  }, true);
+  document.addEventListener('scroll', closeMenu, true);
+  window.addEventListener('blur', closeMenu);
+})();
+`;
+
+async function togglePiP() {
+  const wv = getActiveWebview();
+  if (!wv) { showToast('No active tab'); return; }
+  try {
+    const result = await wv.executeJavaScript(`
+      (function() {
+        if (document.pictureInPictureElement) {
+          document.exitPictureInPicture();
+          return '__pip_closed__';
+        }
+        const v = Array.from(document.querySelectorAll('video')).find(v => !v.paused) ||
+                  document.querySelector('video');
+        if (!v) return '__no_video__';
+        return '__hover_hint__';
+      })();
+    `, true);
+    if (result === '__no_video__') showToast('No video playing on this page');
+    else if (result === '__hover_hint__') showToast('Right-click the video and choose Picture in Picture');
+    else if (result === '__pip_closed__') showToast('Picture in Picture — off');
+  } catch (err) {
+    showToast('Could not activate Picture in Picture');
+  }
+}
+
+// Alt+P keyboard shortcut for PiP
+document.addEventListener('keydown', (e) => {
+  if (e.altKey && (e.key === 'p' || e.key === 'P')) {
+    e.preventDefault();
+    togglePiP();
+  }
+});
+
 // ── Save homepage ──────────────────────────────────────────
 async function saveHomepage() {
   const val = document.getElementById('homepageInput').value.trim();
@@ -2103,6 +2228,9 @@ function showToast(message) {
       if (devtoolsBar) devtoolsBar.classList.remove('visible');
       devtoolsOpen = false;
     });
+
+    // PiP shortcut from inside webview (Alt+P while focused on a page)
+    window.electronAPI.onPiPToggle(() => togglePiP());
 
     // ═══════════════════════════════════════════════════════
     // INIT

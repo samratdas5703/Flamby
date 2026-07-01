@@ -407,6 +407,25 @@ body.is-fullscreen::before {
 }
 .badge-toggle svg { flex-shrink: 0; }
 
+/* ── Picture in Picture badge ── */
+.pip-btn {
+  background: rgba(255,159,10,0.15);
+  border: 0.5px solid rgba(255,159,10,0.35);
+  color: #ffb340;
+}
+.pip-btn:hover { filter: brightness(1.2); }
+.pip-btn.active {
+  background: rgba(255,159,10,0.28);
+  border-color: rgba(255,159,10,0.6);
+  color: #ffd080;
+  box-shadow: 0 0 8px rgba(255,159,10,0.3);
+}
+.pip-btn.off {
+  background: rgba(255,255,255,0.08);
+  border: 0.5px solid rgba(255,255,255,0.16);
+  color: rgba(255,255,255,0.4);
+}
+
 /* ── Bookmark Bar ── */
 .bookmark-bar {
   display: flex;

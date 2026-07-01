@@ -184,6 +184,11 @@ async function createWindow() {
         win.webContents.send('devtools:toggle');
         e.preventDefault();
       }
+      // Alt+P — Picture in Picture
+      if ((input.key === 'p' || input.key === 'P') && input.alt) {
+        win.webContents.send('pip:toggle');
+        e.preventDefault();
+      }
     });
   });
 
