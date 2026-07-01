@@ -15,6 +15,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getSettings:  ()       => ipcRenderer.invoke('settings:get'),
   saveSettings: (settings) => ipcRenderer.invoke('settings:save', settings),
 
+  // ── Onboarding (first-launch intro) ─────────────────────
+  shouldShowOnboarding: () => ipcRenderer.invoke('onboarding:shouldShow'),
+  completeOnboarding:   () => ipcRenderer.invoke('onboarding:complete'),
+
   // ── Ad blocker ─────────────────────────────────────────
   setAdblockEnabled: (enabled) => ipcRenderer.invoke('adblock:setEnabled', enabled),
 

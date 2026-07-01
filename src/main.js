@@ -37,6 +37,7 @@ const BOOKMARKS_FILE   = path.join(DATA_DIR, 'bookmarks.json');
 const SETTINGS_FILE    = path.join(DATA_DIR, 'settings.json');
 const DOWNLOADS_FILE   = path.join(DATA_DIR, 'downloads.json');
 const PERMISSIONS_FILE = path.join(DATA_DIR, 'permissions.json');
+const ONBOARDING_FILE  = path.join(DATA_DIR, 'onboarding.json');
 
 // ── Downloads state ─────────────────────────────────────────
 let downloads = []; // [{ id, filename, url, savePath, state, receivedBytes, totalBytes, startTime }]
@@ -431,6 +432,19 @@ ipcMain.handle('settings:get', () => {
 ipcMain.handle('settings:save', (event, settings) => {
   console.log('📨 IPC: settings:save called with', settings);
   return writeJSON(SETTINGS_FILE, settings);
+});
+
+// ── Onboarding (first-launch intro) ─────────────────────────
+// A dedicated marker file (separate from settings.json) tracks whether
+// the person has already been through the intro, so it survives even
+// if settings.json gets wiped/reset by something else.
+ipcMain.handle('onboarding:shouldShow', () => {
+  const state = readJSON(ONBOARDING_FILE, { completed: false });
+  return !state.completed;
+});
+
+ipcMain.handle('onboarding:complete', () => {
+  return writeJSON(ONBOARDING_FILE, { completed: true, completedAt: Date.now() });
 });
 
 // ── Ad blocker toggle ────────────────────────────────────────
