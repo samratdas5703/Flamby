@@ -395,13 +395,13 @@
       position: fixed;
       bottom: 24px;
       right: 24px;
-      width: 340px;
-      background: rgba(22,18,38,0.97);
-      backdrop-filter: blur(28px) saturate(180%);
-      -webkit-backdrop-filter: blur(28px) saturate(180%);
+      width: 360px;
+      background: rgba(20,16,35,0.55);
+      backdrop-filter: blur(40px) saturate(180%);
+      -webkit-backdrop-filter: blur(40px) saturate(180%);
       border: 0.5px solid rgba(255,255,255,0.16);
-      border-radius: 16px;
-      padding: 18px;
+      border-radius: 18px;
+      padding: 20px;
       z-index: 999999;
       box-shadow: 0 24px 70px rgba(0,0,0,0.55);
       color: white;
@@ -412,17 +412,34 @@
       from { transform: translateY(16px); opacity: 0; }
       to   { transform: translateY(0);    opacity: 1; }
     }
+    .update-toast-eyebrow {
+      font-size: 11px;
+      font-weight: 600;
+      color: rgba(255,255,255,0.5);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
     .update-toast-header {
       display: flex;
       align-items: center;
-      gap: 10px;
-      margin-bottom: 10px;
+      gap: 12px;
+      margin-bottom: 16px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
     }
     .update-icon {
-      width: 34px;
-      height: 34px;
-      border-radius: 10px;
-      background: rgba(10,132,255,0.22);
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      background: rgba(10,132,255,0.18);
+      backdrop-filter: blur(10px) saturate(180%);
+      -webkit-backdrop-filter: blur(10px) saturate(180%);
+      border: 0.5px solid rgba(10,132,255,0.35);
+      color: #5eb3ff;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -430,34 +447,40 @@
       flex-shrink: 0;
     }
     .update-toast-title {
-      font-size: 14px;
+      font-size: 15px;
       font-weight: 600;
     }
     .update-toast-version {
       font-size: 11px;
       color: rgba(255,255,255,0.45);
-      margin-top: 1px;
+      margin-top: 2px;
     }
     .update-toast-close {
       margin-left: auto;
-      background: none;
-      border: none;
-      color: rgba(255,255,255,0.4);
+      width: 30px;
+      height: 30px;
+      background: rgba(255,255,255,0.08);
+      backdrop-filter: blur(10px) saturate(180%);
+      -webkit-backdrop-filter: blur(10px) saturate(180%);
+      border: 0.5px solid rgba(255,255,255,0.16);
+      border-radius: 50%;
+      color: rgba(255,255,255,0.6);
       cursor: pointer;
-      padding: 4px;
+      padding: 0;
       flex-shrink: 0;
       display: flex;
       align-items: center;
       justify-content: center;
+      transition: all 0.2s;
     }
-    .update-toast-close:hover { color: white; }
+    .update-toast-close:hover { background: rgba(255,80,80,0.25); color: #ffffff; }
     .update-notes {
-      font-size: 12px;
+      font-size: 12.5px;
       line-height: 1.6;
       color: rgba(255,255,255,0.7);
-      max-height: 130px;
+      max-height: 150px;
       overflow-y: auto;
-      margin-bottom: 14px;
+      margin-bottom: 16px;
       padding-right: 4px;
     }
     .update-notes::-webkit-scrollbar { width: 3px; }
@@ -465,7 +488,34 @@
       background: rgba(255,255,255,0.15);
       border-radius: 2px;
     }
-    .update-notes ul { padding-left: 16px; margin: 4px 0; }
+    .update-notes ul, .update-notes ol {
+      list-style: none;
+      padding: 0;
+      margin: 4px 0;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .update-notes li {
+      position: relative;
+      padding: 7px 10px 7px 26px;
+      background: rgba(255,255,255,0.05);
+      border: 0.5px solid rgba(255,255,255,0.08);
+      border-radius: 8px;
+      transition: background 0.15s;
+    }
+    .update-notes li:hover { background: rgba(255,255,255,0.09); }
+    .update-notes li::before {
+      content: '';
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: #5eb3ff;
+    }
     .update-notes p { margin: 4px 0; }
     .update-toast-buttons {
       display: flex;
@@ -473,13 +523,13 @@
     }
     .update-btn {
       flex: 1;
-      padding: 9px 0;
+      padding: 10px 0;
       border-radius: 9px;
       border: none;
       cursor: pointer;
       font-size: 12.5px;
       font-weight: 600;
-      transition: background 0.2s;
+      transition: all 0.2s;
     }
     .update-btn-primary {
       background: #0a84ff;
@@ -487,10 +537,13 @@
     }
     .update-btn-primary:hover { background: #0070e0; }
     .update-btn-secondary {
-      background: rgba(255,255,255,0.1);
+      background: rgba(255,255,255,0.08);
+      backdrop-filter: blur(10px) saturate(180%);
+      -webkit-backdrop-filter: blur(10px) saturate(180%);
+      border: 0.5px solid rgba(255,255,255,0.16);
       color: rgba(255,255,255,0.75);
     }
-    .update-btn-secondary:hover { background: rgba(255,255,255,0.18); }
+    .update-btn-secondary:hover { background: rgba(255,255,255,0.16); color: #ffffff; }
     .update-btn-primary:disabled {
       opacity: 0.6;
       cursor: default;
@@ -648,6 +701,10 @@
     <!-- Bookmark Popup Overlay -->
     <!-- Update Notification Toast -->
     <div class="update-toast" id="updateToast">
+      <div class="update-toast-eyebrow">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 2"/></svg>
+        What's new
+      </div>
       <div class="update-toast-header">
         <div class="update-icon">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
@@ -2388,7 +2445,16 @@ function showToast(message) {
     // (which are markdown) read reasonably instead of as raw text.
     function formatReleaseNotes(raw) {
       if (!raw) return '<p>No details were provided for this update.</p>';
-      let html = raw
+      const trimmed = raw.trim();
+
+      // If the notes already come as real HTML (e.g. an <ol>/<ul> list from
+      // the release body), just use them directly instead of escaping and
+      // re-parsing as plain text/markdown, which would show the raw tags.
+      if (/<\/?(ul|ol|li|p|br|strong|em|b|i|h[1-6])[\s>]/i.test(trimmed)) {
+        return trimmed;
+      }
+
+      let html = trimmed
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;');
@@ -2542,7 +2608,7 @@ function showToast(message) {
     const ONBOARDING_STEPS = [
       // Step 0 — Welcome
       {
-        title: 'Welcome to Flamby',
+        title: 'Welcome to Flamby 🔥',
         body: [
           'A fast, privacy-focused browser built around vertical tabs, split view, and a look that\'s entirely yours.',
           'Let\'s get you set up — it only takes a moment.'
